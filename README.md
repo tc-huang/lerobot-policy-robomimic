@@ -769,3 +769,40 @@ back with its processors. The policy has 68M parameters, mostly the six
 ResNet-18s of three observation encoders with two cameras each (§18). The
 logged KL loss can be negative with a mixture prior, since robomimic
 estimates it from one posterior sample (§18).
+
+## Language conditioning
+
+robomimic added language conditioning in v0.5 (Repo commit `ae5799f`,
+`docs/tutorials/language_conditioning.md`). It is not part of the paper and
+works with every policy here, since it lives in the observation encoder. The
+paper's tasks each have one fixed instruction, so robomimic gives every demo
+of a dataset the same one.
+
+### 21. Task embedding
+
+`CLIPTaskEmbeddingStep` in `lerobot_policy_robomimic/language.py` embeds the
+task string that LeRobot keeps with every frame, and that `lerobot-eval` takes
+from the env's `task_description` (LeRobot `scripts/lerobot_eval.py:281`). It
+adds the embedding to the observation as `observation.language.embedding`.
+`make_robomimic_pre_post_processors` in `lerobot_policy_robomimic/processors.py`
+puts it after the batch dimension is added and before tensors move to the
+policy's device; every policy's processor factory calls this one function.
+`tests/test_language.py` checks the step and, once the CLIP model is in the
+Hugging Face cache, compares its embedding with robomimic's `get_lang_emb`.
+
+| Setting or part  | Behavior                                                                  | Config field                                      | Source                                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Conditioning     | Off; `concat` or `film` turns it on                                       | `language_conditioning` (None)                    | Repo `docs/tutorials/language_conditioning.md` (section 2)                                                                        |
+| CLIP model       | `openai/clip-vit-large-patch14`, its projected text embedding of size 768 | `clip_model_name`, `language_embedding_dim` (768) | Repo `robomimic/utils/lang_utils.py:4`, `:21`, `:43`; `robomimic/models/base_nets.py:666`                                         |
+| Tokens           | The task alone, with special tokens, padded to 25 tokens                  | (fixed)                                           | Repo `robomimic/utils/lang_utils.py:35-42`                                                                                        |
+| Embedding source | The task string of each frame                                             | (fixed)                                           | This port; robomimic embeds one `lang` per dataset and copies it to every step (`robomimic/utils/dataset.py:113-114`, `:530-532`) |
+| Model loading    | On the first task, once per model; embeddings cached per task             | (fixed)                                           | Repo `robomimic/utils/lang_utils.py:8-27` (lazy loading)                                                                          |
+
+Taking the embedding from LeRobot's task string instead of a per-dataset
+setting gives the same input for robomimic's single-task datasets, and lets
+`lerobot-eval` feed the same instruction to the policy without the env
+computing embeddings itself.
+
+Language conditioning needs `transformers`, available as the `language`
+extra with LeRobot's own bounds (`lerobot[transformers-dep]`). The CLIP model
+is about 1.7 GB and is downloaded to the Hugging Face cache on first use.

@@ -678,3 +678,34 @@ observation 條件化的混合 prior 訓練 BC-VAE，儲存 checkpoint，並連�
 `select_action`。這個 policy 有 6800 萬個參數，大多來自三個 observation encoder、每個各兩支
 相機的六個 ResNet-18（§18）。使用混合 prior 時，記錄的 KL loss 可能是負的，因為 robomimic 只用
 一個 posterior 樣本估計它（§18）。
+
+## 語言條件化
+
+robomimic 在 v0.5 加入語言條件化（原 repo commit `ae5799f`、
+`docs/tutorials/language_conditioning.md`）。它不在論文中；因為它位於 observation encoder，
+本專案的每個 policy 都能使用。論文的每個任務只有一句固定的指令，因此 robomimic 讓同一個
+dataset 的所有示範共用同一句。
+
+### 21. 任務 embedding
+
+`lerobot_policy_robomimic/language.py` 的 `CLIPTaskEmbeddingStep` 把 LeRobot 每個 frame 都有的
+task 字串轉成 embedding；`lerobot-eval` 則從 env 的 `task_description` 取得這個字串（LeRobot
+`scripts/lerobot_eval.py:281`）。它把 embedding 以 `observation.language.embedding` 加進
+observation。`lerobot_policy_robomimic/processors.py` 的 `make_robomimic_pre_post_processors`
+把這個 step 放在加上 batch 維度之後、tensor 移到 policy 裝置之前；每個 policy 的 processor
+factory 都呼叫這同一個函式。`tests/test_language.py` 會檢查這個 step，並在 Hugging Face
+cache 中有 CLIP 模型時，把它的 embedding 和 robomimic 的 `get_lang_emb` 比對。
+
+| 設定或部分     | 行為                                                               | Config 欄位                                        | 來源                                                                                                                   |
+| -------------- | ------------------------------------------------------------------ | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 條件化方式     | 關閉；設為 `concat` 或 `film` 時開啟                               | `language_conditioning`（None）                    | 原 repo `docs/tutorials/language_conditioning.md`（第 2 節）                                                           |
+| CLIP 模型      | `openai/clip-vit-large-patch14` 投影後的文字 embedding，768 維     | `clip_model_name`、`language_embedding_dim`（768） | 原 repo `robomimic/utils/lang_utils.py:4`、`:21`、`:43`；`robomimic/models/base_nets.py:666`                           |
+| Token          | 單獨處理每個 task，加上特殊 token，補齊到 25 個 token              | （固定）                                           | 原 repo `robomimic/utils/lang_utils.py:35-42`                                                                          |
+| Embedding 來源 | 每個 frame 的 task 字串                                            | （固定）                                           | 本專案；robomimic 則是每個 dataset 嵌入一句 `lang`，再複製到每一步（`robomimic/utils/dataset.py:113-114`、`:530-532`） |
+| 模型載入       | 第一個 task 出現時載入，每個模型只載入一次；embedding 依 task 快取 | （固定）                                           | 原 repo `robomimic/utils/lang_utils.py:8-27`（延遲載入）                                                               |
+
+改用 LeRobot 的 task 字串、而不是每個 dataset 的設定，對 robomimic 的單一任務 dataset 會得到
+相同的輸入，也讓 `lerobot-eval` 能把同一句指令交給 policy，env 不必自己計算 embedding。
+
+語言條件化需要 `transformers`，以 `language` extra 提供，版本範圍沿用 LeRobot 自己的
+`lerobot[transformers-dep]`。CLIP 模型約 1.7 GB，第一次使用時會下載到 Hugging Face cache。

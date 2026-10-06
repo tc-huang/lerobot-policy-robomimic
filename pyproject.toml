@@ -15,6 +15,7 @@ dependencies = [
 [project.optional-dependencies]
 sim = ["robosuite==1.5.1", "mujoco==3.2.7"]
 training = ["lerobot[training]>=0.6.1"]
+language = ["lerobot[transformers-dep]>=0.6.1"]
 
 [build-system]
 requires = ["uv_build>=0.12.5,<0.13.0"]
@@ -81,6 +82,7 @@ dev = [
     "matplotlib>=3.10.0,<4.0.0",
     "pre-commit>=3.7.0,<5.0.0",
     "pytest>=8.1.0,<10.0.0",
+    "transformers>=5.4.0,<5.6.0",
 ]
 
 [tool.pytest.ini_options]

@@ -6,6 +6,8 @@ from lerobot.configs import FeatureType, NormalizationMode, PolicyFeature, PreTr
 from lerobot.optim import AdamConfig
 from lerobot.optim.schedulers import LRSchedulerConfig
 
+LANGUAGE_CONDITIONINGS = (None, "concat", "film")
+
 
 @dataclass
 class RobomimicPolicyConfig(PreTrainedConfig):
@@ -22,6 +24,11 @@ class RobomimicPolicyConfig(PreTrainedConfig):
             training, as in robomimic v0.1, whose checkpoints were evaluated that way.
         spatial_softmax_num_kp: Number of keypoints each camera's spatial softmax extracts.
         image_feature_dim: Size of the feature each camera is projected to.
+        language_conditioning: How the policy reads the CLIP embedding of the task: "concat"
+            adds it to the features, "film" modulates every camera's ResNet with it, and None
+            ignores the task.
+        clip_model_name: CLIP model whose projected text embedding encodes the task.
+        language_embedding_dim: Size of that embedding.
         optimizer_lr: Adam learning rate, kept constant.
         optimizer_weight_decay: Adam weight decay.
         optimizer_grad_clip_norm: Gradient norm limit; 0 disables clipping.
@@ -43,6 +50,10 @@ class RobomimicPolicyConfig(PreTrainedConfig):
     spatial_softmax_num_kp: int = 32
     image_feature_dim: int = 64
 
+    language_conditioning: str | None = None
+    clip_model_name: str = "openai/clip-vit-large-patch14"
+    language_embedding_dim: int = 768
+
     optimizer_lr: float = 1e-4
     optimizer_weight_decay: float = 0.0
     optimizer_grad_clip_norm: float = 0.0
@@ -52,6 +63,10 @@ class RobomimicPolicyConfig(PreTrainedConfig):
         if self.n_obs_steps != 1:
             raise ValueError(
                 f"{self.type} reads one observation per step, got n_obs_steps={self.n_obs_steps}."
+            )
+        if self.language_conditioning not in LANGUAGE_CONDITIONINGS:
+            raise ValueError(
+                f"language_conditioning must be one of {LANGUAGE_CONDITIONINGS}, got {self.language_conditioning!r}."
             )
 
     @property

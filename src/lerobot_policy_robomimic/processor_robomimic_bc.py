@@ -1,9 +1,10 @@
 from typing import Any
 
 import torch
-from lerobot.processor import PolicyAction, PolicyProcessorPipeline, make_default_pre_post_processors
+from lerobot.processor import PolicyAction, PolicyProcessorPipeline
 
 from .configuration_robomimic_bc import RobomimicBCConfig
+from .processors import make_robomimic_pre_post_processors
 
 
 def make_robomimic_bc_pre_post_processors(
@@ -13,9 +14,5 @@ def make_robomimic_bc_pre_post_processors(
     PolicyProcessorPipeline[dict[str, Any], dict[str, Any]],
     PolicyProcessorPipeline[PolicyAction, PolicyAction],
 ]:
-    """Builds the pipelines that run before and after `RobomimicBCPolicy`.
-
-    LeRobot's default pipelines add the batch dimension, move tensors between devices, and
-    normalize; `config.normalization_mapping` leaves every feature as it is, like robomimic.
-    """
-    return make_default_pre_post_processors(config, dataset_stats, normalizer_device=config.device)
+    """Builds the pipelines that run before and after `RobomimicBCPolicy`, shared by every robomimic policy."""
+    return make_robomimic_pre_post_processors(config, dataset_stats)
