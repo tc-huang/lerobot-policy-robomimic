@@ -71,13 +71,15 @@ networks instead of importing robomimic at runtime.
 
 ### 1. Policy types and package layout
 
-| Decision                      | Choice                                                                                   | Source                                                                                                                                                                                                                 |
-| ----------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Policy type                   | `robomimic_bc`                                                                           | This port: the `robomimic_` prefix avoids clashing with LeRobot's built-in types, such as `diffusion` (`policies/diffusion/`), which robomimic also implements (Repo `robomimic/algo/diffusion_policy.py`)             |
-| Class and function names      | `RobomimicBCConfig`, `RobomimicBCPolicy`, `make_robomimic_bc_pre_post_processors`        | LeRobot: the policy class name is the config class name with `Config` replaced by `Policy` (`policies/factory.py:409-415`), and the processor factory is `make_<type>_pre_post_processors` (`policies/factory.py:458`) |
-| Module names                  | `configuration_robomimic_bc.py`, `modeling_robomimic_bc.py`, `processor_robomimic_bc.py` | LeRobot: the modeling and processor modules are found by replacing `configuration_` in the config's module path (`policies/factory.py:416`, `:459`); the names follow the guide's template                             |
-| Distribution name             | `lerobot_policy_robomimic`                                                               | LeRobot: an installed distribution whose name starts with `lerobot_policy_` is imported by that name (`utils/import_utils.py:231-255`), which runs `@PreTrainedConfig.register_subclass`                               |
-| Several policies, one package | Each robomimic algorithm gets its own policy type and its own three modules              | This port: the guide shows one policy per package, but the factory only needs those three modules per type, so robomimic's algorithms can share one package and its networks                                           |
+| Decision                      | Choice                                                                                                                                      | Source                                                                                                                                                                                                                 |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Policy types                  | `robomimic_bc` (BC), `robomimic_bc_rnn` (BC-RNN)                                                                                            | This port: the `robomimic_` prefix avoids clashing with LeRobot's built-in types, such as `diffusion` (`policies/diffusion/`), which robomimic also implements (Repo `robomimic/algo/diffusion_policy.py`)             |
+| Class and function names      | `RobomimicBCConfig`, `RobomimicBCPolicy`, `make_robomimic_bc_pre_post_processors`; likewise `RobomimicBCRNN…` and `make_robomimic_bc_rnn_…` | LeRobot: the policy class name is the config class name with `Config` replaced by `Policy` (`policies/factory.py:409-415`), and the processor factory is `make_<type>_pre_post_processors` (`policies/factory.py:458`) |
+| Module names                  | `configuration_<type>.py`, `modeling_<type>.py`, `processor_<type>.py`                                                                      | LeRobot: the modeling and processor modules are found by replacing `configuration_` in the config's module path (`policies/factory.py:416`, `:459`); the names follow the guide's template                             |
+| Distribution name             | `lerobot_policy_robomimic`                                                                                                                  | LeRobot: an installed distribution whose name starts with `lerobot_policy_` is imported by that name (`utils/import_utils.py:231-255`), which runs `@PreTrainedConfig.register_subclass`                               |
+| Several policies, one package | Each robomimic algorithm gets its own policy type and its own three modules                                                                 | This port: the guide shows one policy per package, but the factory only needs those three modules per type, so robomimic's algorithms can share one package and its networks                                           |
+
+## BC (`robomimic_bc`)
 
 ### 2. Configuration
 
@@ -254,3 +256,8 @@ A 20-step `lerobot-train` run on the converted Lift image dataset trains,
 saves a checkpoint, and loads it back with its processors for
 `select_action`. `lerobot-train` needs `lerobot[training]`, available here as
 the `training` extra, as in `lerobot_policy_openvla_oft`.
+
+## BC-RNN (`robomimic_bc_rnn`)
+
+BC-RNN is robomimic's main policy in its paper. It reuses the camera encoder
+(§3), the observation encoder (§4), and the action heads (§5) of BC.

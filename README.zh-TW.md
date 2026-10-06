@@ -67,13 +67,15 @@ robomimic 以 MIT License 釋出。本專案重新實作其網路，執行時不
 
 ### 1. Policy type 與套件結構
 
-| 決策                  | 選擇                                                                                     | 來源                                                                                                                                                                                                |
-| --------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Policy type           | `robomimic_bc`                                                                           | 本專案：加上 `robomimic_` 前綴，避免和 LeRobot 內建的 type 衝突，例如 `diffusion`（`policies/diffusion/`），而 robomimic 也有實作它（原 repo `robomimic/algo/diffusion_policy.py`）                 |
-| Class 與函式名稱      | `RobomimicBCConfig`、`RobomimicBCPolicy`、`make_robomimic_bc_pre_post_processors`        | LeRobot：policy class 名稱是把 config class 名稱的 `Config` 換成 `Policy`（`policies/factory.py:409-415`），processor factory 名稱是 `make_<type>_pre_post_processors`（`policies/factory.py:458`） |
-| 模組名稱              | `configuration_robomimic_bc.py`、`modeling_robomimic_bc.py`、`processor_robomimic_bc.py` | LeRobot：modeling 與 processor 模組是把 config 模組路徑中的 `configuration_` 替換後找到的（`policies/factory.py:416`、`:459`）；命名沿用指南的 template                                             |
-| Distribution 名稱     | `lerobot_policy_robomimic`                                                               | LeRobot：名稱以 `lerobot_policy_` 開頭的已安裝 distribution 會以該名稱被 import（`utils/import_utils.py:231-255`），進而執行 `@PreTrainedConfig.register_subclass`                                  |
-| 一個套件、多個 policy | 每個 robomimic 演算法各自有 policy type 與三個模組                                       | 本專案：指南示範一個套件一個 policy，但 factory 只需要每個 type 各有這三個模組，因此 robomimic 的演算法可以共用一個套件與其網路                                                                     |
+| 決策                  | 選擇                                                                                                                                       | 來源                                                                                                                                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Policy type           | `robomimic_bc`（BC）、`robomimic_bc_rnn`（BC-RNN）                                                                                         | 本專案：加上 `robomimic_` 前綴，避免和 LeRobot 內建的 type 衝突，例如 `diffusion`（`policies/diffusion/`），而 robomimic 也有實作它（原 repo `robomimic/algo/diffusion_policy.py`）                 |
+| Class 與函式名稱      | `RobomimicBCConfig`、`RobomimicBCPolicy`、`make_robomimic_bc_pre_post_processors`；`RobomimicBCRNN…` 與 `make_robomimic_bc_rnn_…` 依此類推 | LeRobot：policy class 名稱是把 config class 名稱的 `Config` 換成 `Policy`（`policies/factory.py:409-415`），processor factory 名稱是 `make_<type>_pre_post_processors`（`policies/factory.py:458`） |
+| 模組名稱              | `configuration_<type>.py`、`modeling_<type>.py`、`processor_<type>.py`                                                                     | LeRobot：modeling 與 processor 模組是把 config 模組路徑中的 `configuration_` 替換後找到的（`policies/factory.py:416`、`:459`）；命名沿用指南的 template                                             |
+| Distribution 名稱     | `lerobot_policy_robomimic`                                                                                                                 | LeRobot：名稱以 `lerobot_policy_` 開頭的已安裝 distribution 會以該名稱被 import（`utils/import_utils.py:231-255`），進而執行 `@PreTrainedConfig.register_subclass`                                  |
+| 一個套件、多個 policy | 每個 robomimic 演算法各自有 policy type 與三個模組                                                                                         | 本專案：指南示範一個套件一個 policy，但 factory 只需要每個 type 各有這三個模組，因此 robomimic 的演算法可以共用一個套件與其網路                                                                     |
+
+## BC（`robomimic_bc`）
 
 ### 2. Configuration
 
@@ -233,3 +235,8 @@ key、加上 batch 維度、把 tensor 移到 policy 的裝置並做正規化；
 checkpoint，並連同 processor 讀回後執行 `select_action`。`lerobot-train` 需要
 `lerobot[training]`，本專案和 `lerobot_policy_openvla_oft` 一樣以 `training` extra
 提供。
+
+## BC-RNN（`robomimic_bc_rnn`）
+
+BC-RNN 是 robomimic 論文的主力 policy。它重用 BC 的相機 encoder（§3）、observation
+encoder（§4）與 action head（§5）。

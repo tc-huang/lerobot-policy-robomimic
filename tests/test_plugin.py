@@ -1,20 +1,33 @@
 import importlib
 
+import pytest
 from lerobot.configs import PreTrainedConfig
 from lerobot.policies.factory import get_policy_class
 from lerobot.utils.import_utils import register_third_party_plugins
 
-from lerobot_policy_robomimic import RobomimicBCConfig, RobomimicBCPolicy
+from lerobot_policy_robomimic import (
+    RobomimicBCConfig,
+    RobomimicBCPolicy,
+    RobomimicBCRNNConfig,
+    RobomimicBCRNNPolicy,
+)
+
+POLICIES = [
+    ("robomimic_bc", RobomimicBCConfig, RobomimicBCPolicy),
+    ("robomimic_bc_rnn", RobomimicBCRNNConfig, RobomimicBCRNNPolicy),
+]
 
 
-def test_lerobot_discovers_policy():
+@pytest.mark.parametrize(("policy_type", "config_class", "policy_class"), POLICIES)
+def test_lerobot_discovers_policy(policy_type, config_class, policy_class):
     register_third_party_plugins()
 
-    assert PreTrainedConfig.get_choice_class("robomimic_bc") is RobomimicBCConfig
-    assert get_policy_class("robomimic_bc") is RobomimicBCPolicy
+    assert PreTrainedConfig.get_choice_class(policy_type) is config_class
+    assert get_policy_class(policy_type) is policy_class
 
 
-def test_processor_follows_naming_convention():
-    module = importlib.import_module(RobomimicBCConfig.__module__.replace("configuration_", "processor_"))
+@pytest.mark.parametrize(("policy_type", "config_class", "policy_class"), POLICIES)
+def test_processor_follows_naming_convention(policy_type, config_class, policy_class):
+    module = importlib.import_module(config_class.__module__.replace("configuration_", "processor_"))
 
-    assert callable(module.make_robomimic_bc_pre_post_processors)
+    assert callable(getattr(module, f"make_{policy_type}_pre_post_processors"))
