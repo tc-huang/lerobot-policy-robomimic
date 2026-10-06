@@ -71,6 +71,20 @@ uv run python -m lerobot_policy_robomimic.convert_checkpoint \
     --output-dir outputs/checkpoints/lift_ph_image_bc_rnn
 ```
 
+Evaluate a policy in simulation with `lerobot-eval` and the `robomimic` env,
+which rebuilds the robosuite env of a converted dataset (§ Simulation); this
+needs the `sim` extra:
+
+```bash
+uv sync --extra training --extra sim
+uv run lerobot-eval \
+    --policy.path=outputs/checkpoints/lift_ph_image_bc_rnn \
+    --env.type=robomimic \
+    --env.env_args_path=$ROOT/meta/robomimic_env_args.json \
+    --eval.n_episodes=50 \
+    --eval.batch_size=1
+```
+
 ## Datasets
 
 `lerobot_policy_robomimic/convert_dataset.py` turns a robomimic hdf5 file that
@@ -493,8 +507,14 @@ demonstrated actions with a mean absolute error of 0.071 per dimension, or
 always predicting zeros gives 0.263, and skipping the column reorder of
 `weight_ih_l0` gives 0.305. The dataset was regenerated with robosuite 1.5.1,
 while the checkpoint was trained on data from robosuite's `offline_study`
-branch, so part of the error may come from that difference. Success rates in
-simulation are not measured yet.
+branch, so part of the error may come from that difference.
+
+In closed loop, `lerobot-eval` in the `robomimic` env of the Lift image
+dataset (50 episodes, seed 1000, about 1 s per episode on an Apple M5 Max)
+gives the converted checkpoint a success rate of 100%, matching the model
+zoo's reported ~100% (Repo `docs/model_zoo/robomimic_v0.1.md:35`). With
+center crops at inference instead of v0.1's random crops (§3), it succeeds in
+98% of the same episodes.
 
 ## BC-Transformer (`robomimic_bc_transformer`)
 

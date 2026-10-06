@@ -66,6 +66,19 @@ uv run python -m lerobot_policy_robomimic.convert_checkpoint \
     --output-dir outputs/checkpoints/lift_ph_image_bc_rnn
 ```
 
+以 `lerobot-eval` 與 `robomimic` env 在模擬環境中評估 policy；這個 env 會重建轉換後 dataset
+的 robosuite env（見 Simulation 一節），需要 `sim` extra：
+
+```bash
+uv sync --extra training --extra sim
+uv run lerobot-eval \
+    --policy.path=outputs/checkpoints/lift_ph_image_bc_rnn \
+    --env.type=robomimic \
+    --env.env_args_path=$ROOT/meta/robomimic_env_args.json \
+    --eval.n_episodes=50 \
+    --eval.batch_size=1
+```
+
 ## Datasets
 
 `lerobot_policy_robomimic/convert_dataset.py` 把含有 observation 的 robomimic hdf5 檔轉成
@@ -439,7 +452,12 @@ image checkpoint（`lift_ph_image_epoch_500_succ_100.pth`，SHA-256 `37b94a11…
 預測示範 action 的平均絕對誤差為每維 0.071，改用中央裁切時為 0.073。兩個對照組說明這個誤差
 是有意義的：一律預測 0 時為 0.263，略過 `weight_ih_l0` 的欄位重新排列時為 0.305。這份
 dataset 是用 robosuite 1.5.1 重新產生的，而 checkpoint 是用 robosuite `offline_study`
-branch 的資料訓練，因此部分誤差可能來自這個差異。模擬環境中的成功率尚未量測。
+branch 的資料訓練，因此部分誤差可能來自這個差異。
+
+在閉環評估中，以 `lerobot-eval` 在 Lift image dataset 的 `robomimic` env 上評估（50 個
+episode、seed 1000，在 Apple M5 Max 上每個 episode 約 1 秒），轉換後的 checkpoint 成功率為
+100%，和 model zoo 回報的約 100% 一致（原 repo `docs/model_zoo/robomimic_v0.1.md:35`）。若推論時
+改用中央裁切、而不是 v0.1 的隨機裁切（§3），在相同的 episode 上成功率為 98%。
 
 ## BC-Transformer（`robomimic_bc_transformer`）
 

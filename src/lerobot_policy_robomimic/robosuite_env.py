@@ -51,6 +51,7 @@ class RobomimicEnv(gym.Env):
             for key in ("camera_names", "camera_heights", "camera_widths"):
                 kwargs.pop(key, None)
         self._env = robosuite.make(env_args["env_name"], **kwargs)
+        self.metadata = {**self.metadata, "render_fps": env_args["env_kwargs"]["control_freq"]}
         self.camera_names = list(camera_names)
         self.state_keys = list(state_keys)
         self.task_description = env_args["env_name"]

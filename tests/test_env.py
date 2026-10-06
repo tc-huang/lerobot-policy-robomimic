@@ -112,6 +112,7 @@ def test_seeded_resets_repeat(env_config):
 
     np.testing.assert_array_equal(first["environment_state"], second["environment_state"])
     assert env._max_episode_steps == 400
+    assert env.metadata["render_fps"] == 20
     env.close()
 
 
