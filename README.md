@@ -48,6 +48,12 @@ uv run lerobot-train \
 For a low-dim experiment, convert the low-dim file instead, add
 `--policy.use_env_state=true`, and use `--batch_size=100 --steps=200000`.
 
+For BC-RNN, use `--policy.type=robomimic_bc_rnn` with the same batch size and
+length, which robomimic applies to every algorithm in its image and low-dim
+experiments (Repo `robomimic/scripts/generate_paper_configs.py:61-62`,
+`:131-132`, chosen by data type alone at `:739-746`). Its low-dim experiments
+also need `--policy.rnn_hidden_dim=400` (§8).
+
 ## Design
 
 Each robomimic policy is rebuilt here from scratch, one component at a time.
@@ -338,3 +344,15 @@ trained on.
 
 The policy builds its encoder and action head with the same
 `ObservationEncoder.from_config` and `make_action_head` as BC.
+
+### 11. Processor
+
+`make_robomimic_bc_rnn_pre_post_processors` returns the same default pipelines
+as BC (§7). They see one step at a time at inference, and whole sequences in
+training, where normalization would apply to every step alike; with the
+`IDENTITY` mapping it leaves them unchanged (`tests/test_processor.py`).
+
+A 20-step `lerobot-train` run on the `train` mask of the converted Lift image
+dataset trains the 35M-parameter policy, saves a checkpoint, and runs 12 steps
+of `select_action` across a state reset after loading it back with its
+processors.

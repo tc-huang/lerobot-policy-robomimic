@@ -46,6 +46,11 @@ uv run lerobot-train \
 若要做 low-dim 實驗，改轉換 low-dim 檔，加上 `--policy.use_env_state=true`，並使用
 `--batch_size=100 --steps=200000`。
 
+若要訓練 BC-RNN，使用 `--policy.type=robomimic_bc_rnn`，batch size 與訓練長度不變；
+robomimic 在 image 與 low-dim 實驗中對所有演算法都使用相同設定（原 repo
+`robomimic/scripts/generate_paper_configs.py:61-62`、`:131-132`；`:739-746` 只依資料
+類型選擇設定）。它的 low-dim 實驗還需要 `--policy.rnn_hidden_dim=400`（§8）。
+
 ## 設計
 
 本專案從零開始重建每個 robomimic policy，一次建構一個元件。以下每一節說明一個元件，
@@ -307,3 +312,13 @@ LSTM 狀態不會延續整個 episode：robomimic 在推論時每 `rnn_horizon` 
 
 這個 policy 和 BC 一樣，用 `ObservationEncoder.from_config` 與 `make_action_head` 建立
 encoder 與 action head。
+
+### 11. Processor
+
+`make_robomimic_bc_rnn_pre_post_processors` 回傳和 BC 相同的預設 pipeline（§7）。推論時
+它們一次處理一步，訓練時則處理整段序列，正規化會同樣套用到每一步；在 `IDENTITY` 對應下
+數值不會改變（`tests/test_processor.py`）。
+
+在轉換好的 Lift image dataset 上，用 `train` mask 跑 20 步的 `lerobot-train`，可以訓練這個
+35M 參數的 policy、存下 checkpoint，並連同 processor 讀回後執行 12 步 `select_action`，
+期間跨過一次狀態重設。
