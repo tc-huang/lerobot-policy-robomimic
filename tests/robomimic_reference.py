@@ -10,6 +10,8 @@ import robomimic.utils.obs_utils as obs_utils  # noqa: E402
 import torch  # noqa: E402
 from lerobot.configs import FeatureType, PolicyFeature  # noqa: E402
 from lerobot.utils.constants import OBS_IMAGES, OBS_STATE  # noqa: E402
+from robomimic.algo import algo_factory  # noqa: E402
+from robomimic.algo.bc import BC  # noqa: E402
 from robomimic.config import config_factory  # noqa: E402
 from robomimic.models.base_nets import SpatialSoftmax  # noqa: E402
 from robomimic.models.obs_core import CropRandomizer, VisualCore  # noqa: E402
@@ -110,6 +112,37 @@ def actor_network(obs_shapes: dict[str, list[int]], action_dim: int) -> ActorNet
         mlp_layer_dims=config.algo.actor_layer_dims,
         encoder_kwargs=obs_utils.obs_encoder_kwargs_from_config(config.observation.encoder),
     )
+
+
+def bc_algo(obs_shapes: dict[str, list[int]], action_dim: int, **loss_weights: float) -> BC:
+    """Returns robomimic's BC algorithm of the image experiments, with keys in sorted order."""
+    config = image_experiment_config()
+    with config.algo.values_unlocked():
+        for name, weight in loss_weights.items():
+            config.algo.loss[name] = weight
+    obs_utils.initialize_obs_utils_with_config(config)
+    return algo_factory(
+        algo_name="bc",
+        config=config,
+        obs_key_shapes=OrderedDict(sorted(obs_shapes.items())),
+        ac_dim=action_dim,
+        device=torch.device("cpu"),
+    )
+
+
+def load_actor_network(actor, reference: ActorNetwork) -> None:
+    """Copies robomimic's `ActorNetwork` weights into an `MLPActor`, reordering the first layer's inputs."""
+    for camera in CAMERAS:
+        load_visual_core(
+            actor.encoder.cameras[camera].encoder,
+            reference.nets["encoder"].nets["obs"].obs_nets[f"{camera}_image"],
+        )
+    reference_mlp = [layer for layer in reference.nets["mlp"]._model if isinstance(layer, torch.nn.Linear)]
+    ours_mlp = [layer for layer in actor.mlp if isinstance(layer, torch.nn.Linear)]
+    for index, (ours, theirs) in enumerate(zip(ours_mlp, reference_mlp, strict=True)):
+        weight = lerobot_feature_order(theirs.weight) if index == 0 else theirs.weight
+        ours.load_state_dict({"weight": weight, "bias": theirs.bias})
+    actor.action_head.load_state_dict(reference.nets["decoder"].nets["action"].state_dict())
 
 
 def load_visual_core(image_encoder, reference: VisualCore) -> None:

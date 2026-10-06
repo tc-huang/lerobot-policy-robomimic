@@ -149,3 +149,25 @@ robomimic splits the MLP into hidden layers and an output layer
 (`robomimic/models/obs_nets.py:619-620`), but since both end in a ReLU, the
 result is one linear layer and one ReLU per size, which is how `MLPActor`
 builds it.
+
+### 6. Policy
+
+`RobomimicBCPolicy` wraps the actor in the methods LeRobot's training and
+evaluation loops call, following robomimic's `BC` class
+(Repo `robomimic/algo/bc.py:78`). A test loads the same weights into
+robomimic's `BC` algorithm and compares the losses and actions
+(`tests/test_policy.py`).
+
+| Method                 | Behavior                                                                                     | Source                                                                                                              |
+| ---------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `forward`              | `l2_weight` × mean squared error + `l1_weight` × smooth L1 + `cos_weight` × cosine loss; each term is logged | Repo `robomimic/algo/bc.py:182-192`                                                                     |
+| Cosine loss            | Mean of 1 − cosine similarity over the first three action dimensions, the end-effector translation | Repo `robomimic/algo/bc.py:185`, `robomimic/utils/loss_utils.py:22-23`                                       |
+| `select_action`        | The actor's action for the current observation, without gradients                            | Repo `robomimic/algo/bc.py:239-251`                                                                                 |
+| `predict_action_chunk` | The same action as a chunk of length 1                                                       | This port: LeRobot expects `(B, chunk_size, action_dim)` (Adding a Policy guide); BC predicts one action           |
+| `reset`                | Nothing to reset                                                                             | Repo `robomimic/algo/algo.py:365` (BC keeps the base class's empty `reset`)                                         |
+| `get_optim_params`     | All parameters in one group                                                                  | Repo `robomimic/algo/algo.py:169-193` (one optimizer for the policy network)                                        |
+
+Importing robomimic's `BC` also imports every other algorithm
+(Repo `robomimic/algo/__init__.py`), so the test needs `diffusers` and
+`imageio`. They are dev dependencies, with `diffusers` bounded as in
+LeRobot's `diffusion` extra.

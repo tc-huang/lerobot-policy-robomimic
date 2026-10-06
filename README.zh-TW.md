@@ -135,3 +135,22 @@ recurrent 與 transformer actor 可以重用同一個 encoder。測試會載入 
 
 robomimic 把 MLP 拆成隱藏層與輸出層（`robomimic/models/obs_nets.py:619-620`），但兩者
 最後都接 ReLU，結果就是每個大小各一層 Linear 加 ReLU，`MLPActor` 也就這樣建立。
+
+### 6. Policy
+
+`RobomimicBCPolicy` 把 actor 包裝成 LeRobot 訓練與評估流程會呼叫的 method，行為依照
+robomimic 的 `BC` class（原 repo `robomimic/algo/bc.py:78`）。測試會把相同權重載入
+robomimic 的 `BC` 演算法，比對 loss 與 action（`tests/test_policy.py`）。
+
+| Method                 | 行為                                                                              | 來源                                                                                                       |
+| ---------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `forward`              | `l2_weight` × 均方誤差 + `l1_weight` × smooth L1 + `cos_weight` × cosine loss；各項都會記錄 | 原 repo `robomimic/algo/bc.py:182-192`                                                             |
+| Cosine loss            | 前三個 action 維度（末端執行器的位移）上 1 − cosine similarity 的平均            | 原 repo `robomimic/algo/bc.py:185`、`robomimic/utils/loss_utils.py:22-23`                                 |
+| `select_action`        | actor 對當下 observation 輸出的 action，不計算梯度                               | 原 repo `robomimic/algo/bc.py:239-251`                                                                     |
+| `predict_action_chunk` | 同一個 action，作為長度 1 的 chunk                                               | 本專案：LeRobot 預期 `(B, chunk_size, action_dim)`（Adding a Policy 指南）；BC 只預測一個 action           |
+| `reset`                | 沒有需要重設的狀態                                                               | 原 repo `robomimic/algo/algo.py:365`（BC 沿用基底類別空的 `reset`）                                        |
+| `get_optim_params`     | 所有參數放在同一組                                                               | 原 repo `robomimic/algo/algo.py:169-193`（policy 網路只有一個 optimizer）                                  |
+
+import robomimic 的 `BC` 時會一併 import 所有其他演算法（原 repo
+`robomimic/algo/__init__.py`），因此測試需要 `diffusers` 與 `imageio`。它們是 dev
+依賴，`diffusers` 的版本範圍沿用 LeRobot 的 `diffusion` extra。
