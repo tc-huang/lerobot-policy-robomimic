@@ -29,34 +29,34 @@ robomimic 以 MIT License 釋出。本專案重新實作其網路，執行時不
 
 ### 1. Policy type 與套件結構
 
-| 決策                     | 選擇                                                                                        | 來源                                                                                                                                                               |
-| ------------------------ | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Policy type              | `robomimic_bc`                                                                              | 本專案：加上 `robomimic_` 前綴，避免和 LeRobot 內建的 type 衝突，例如 `diffusion`（`policies/diffusion/`），而 robomimic 也有實作它（原 repo `robomimic/algo/diffusion_policy.py`） |
-| Class 與函式名稱         | `RobomimicBCConfig`、`RobomimicBCPolicy`、`make_robomimic_bc_pre_post_processors`           | LeRobot：policy class 名稱是把 config class 名稱的 `Config` 換成 `Policy`（`policies/factory.py:409-415`），processor factory 名稱是 `make_<type>_pre_post_processors`（`policies/factory.py:458`） |
-| 模組名稱                 | `configuration_robomimic_bc.py`、`modeling_robomimic_bc.py`、`processor_robomimic_bc.py`    | LeRobot：modeling 與 processor 模組是把 config 模組路徑中的 `configuration_` 替換後找到的（`policies/factory.py:416`、`:459`）；命名沿用指南的 template           |
-| Distribution 名稱        | `lerobot_policy_robomimic`                                                                  | LeRobot：名稱以 `lerobot_policy_` 開頭的已安裝 distribution 會以該名稱被 import（`utils/import_utils.py:231-255`），進而執行 `@PreTrainedConfig.register_subclass` |
-| 一個套件、多個 policy    | 每個 robomimic 演算法各自有 policy type 與三個模組                                          | 本專案：指南示範一個套件一個 policy，但 factory 只需要每個 type 各有這三個模組，因此 robomimic 的演算法可以共用一個套件與其網路                                     |
+| 決策                  | 選擇                                                                                     | 來源                                                                                                                                                                                                |
+| --------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Policy type           | `robomimic_bc`                                                                           | 本專案：加上 `robomimic_` 前綴，避免和 LeRobot 內建的 type 衝突，例如 `diffusion`（`policies/diffusion/`），而 robomimic 也有實作它（原 repo `robomimic/algo/diffusion_policy.py`）                 |
+| Class 與函式名稱      | `RobomimicBCConfig`、`RobomimicBCPolicy`、`make_robomimic_bc_pre_post_processors`        | LeRobot：policy class 名稱是把 config class 名稱的 `Config` 換成 `Policy`（`policies/factory.py:409-415`），processor factory 名稱是 `make_<type>_pre_post_processors`（`policies/factory.py:458`） |
+| 模組名稱              | `configuration_robomimic_bc.py`、`modeling_robomimic_bc.py`、`processor_robomimic_bc.py` | LeRobot：modeling 與 processor 模組是把 config 模組路徑中的 `configuration_` 替換後找到的（`policies/factory.py:416`、`:459`）；命名沿用指南的 template                                             |
+| Distribution 名稱     | `lerobot_policy_robomimic`                                                               | LeRobot：名稱以 `lerobot_policy_` 開頭的已安裝 distribution 會以該名稱被 import（`utils/import_utils.py:231-255`），進而執行 `@PreTrainedConfig.register_subclass`                                  |
+| 一個套件、多個 policy | 每個 robomimic 演算法各自有 policy type 與三個模組                                       | 本專案：指南示範一個套件一個 policy，但 factory 只需要每個 type 各有這三個模組，因此 robomimic 的演算法可以共用一個套件與其網路                                                                     |
 
 ### 2. Configuration
 
 `RobomimicBCConfig` 註冊 policy type `robomimic_bc`。預設值沿用 robomimic 在
 proficient-human（PH）資料集上的 image 實驗設定。
 
-| 設定                   | 預設值                                             | Config 欄位                                      | 來源                                                                                                                                                         |
-| ---------------------- | -------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Observation            | 本體感知與相機；不含物體狀態                       | `use_env_state`（False）                         | 原 repo `robomimic/scripts/generate_paper_configs.py:138-146`（image）；low-dim 實驗另加 `object`（`:67-72`）                                                 |
-| 觀測歷史               | 無（只用當下這一步）                               | `n_obs_steps`、`observation_delta_indices`       | 原 repo `robomimic/config/base_config.py:193`、`:195`；`robomimic/algo/bc.py:111` 只讀第 0 步                                                                 |
-| Action 預測            | 每個 observation 預測一個 action                   | `action_delta_indices`                           | 原 repo `robomimic/algo/bc.py:113`                                                                                                                            |
-| MLP 隱藏層大小         | (1024, 1024)                                       | `actor_layer_dims`                               | 原 repo `robomimic/config/bc_config.py:41`、`robomimic/scripts/generate_paper_configs.py:367`                                                                  |
-| 相機裁切               | 訓練時隨機裁 76×76，推論時中央裁 76×76             | `crop_shape`                                     | 原 repo `robomimic/scripts/generate_paper_configs.py:163-168`                                                                                                 |
-| Spatial softmax keypoint | 32                                               | `spatial_softmax_num_kp`                         | 原 repo `robomimic/scripts/generate_paper_configs.py:157`                                                                                                     |
-| 每支相機的特徵大小     | 64                                                 | `image_feature_dim`                              | 原 repo `robomimic/scripts/generate_paper_configs.py:152`                                                                                                     |
-| Loss                   | 只用均方誤差                                       | `l2_weight`（1）、`l1_weight`（0）、`cos_weight`（0） | 原 repo `robomimic/config/bc_config.py:36-38`                                                                                                           |
-| 正規化                 | 無；影像只縮放到 `[0, 1]`                          | `normalization_mapping`（`IDENTITY`）            | 原 repo `robomimic/config/base_config.py:181`（observation）、`:225`（action）、`robomimic/utils/obs_utils.py:921`（影像）；LeRobot 已縮放影像（`datasets/io_utils.py:255-263`） |
-| Optimizer              | Adam                                               | `get_optimizer_preset()`                         | 原 repo `robomimic/config/bc_config.py:27`                                                                                                                    |
-| Learning rate          | 1e-4，固定不變                                     | `optimizer_lr`                                   | 原 repo `robomimic/config/bc_config.py:28`、`:30`（沒有衰減的 epoch）                                                                                         |
-| Weight decay           | 0                                                  | `optimizer_weight_decay`                         | 原 repo `robomimic/config/bc_config.py:33`                                                                                                                    |
-| Gradient clipping      | 無                                                 | `optimizer_grad_clip_norm`（0）                  | 原 repo `robomimic/config/base_config.py:239`；LeRobot 在 0 時不做 clipping（`scripts/lerobot_train.py:178`）                                                 |
+| 設定                     | 預設值                                 | Config 欄位                                           | 來源                                                                                                                                                                             |
+| ------------------------ | -------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Observation              | 本體感知與相機；不含物體狀態           | `use_env_state`（False）                              | 原 repo `robomimic/scripts/generate_paper_configs.py:138-146`（image）；low-dim 實驗另加 `object`（`:67-72`）                                                                    |
+| 觀測歷史                 | 無（只用當下這一步）                   | `n_obs_steps`、`observation_delta_indices`            | 原 repo `robomimic/config/base_config.py:193`、`:195`；`robomimic/algo/bc.py:111` 只讀第 0 步                                                                                    |
+| Action 預測              | 每個 observation 預測一個 action       | `action_delta_indices`                                | 原 repo `robomimic/algo/bc.py:113`                                                                                                                                               |
+| MLP 隱藏層大小           | (1024, 1024)                           | `actor_layer_dims`                                    | 原 repo `robomimic/config/bc_config.py:41`、`robomimic/scripts/generate_paper_configs.py:367`                                                                                    |
+| 相機裁切                 | 訓練時隨機裁 76×76，推論時中央裁 76×76 | `crop_shape`                                          | 原 repo `robomimic/scripts/generate_paper_configs.py:163-168`                                                                                                                    |
+| Spatial softmax keypoint | 32                                     | `spatial_softmax_num_kp`                              | 原 repo `robomimic/scripts/generate_paper_configs.py:157`                                                                                                                        |
+| 每支相機的特徵大小       | 64                                     | `image_feature_dim`                                   | 原 repo `robomimic/scripts/generate_paper_configs.py:152`                                                                                                                        |
+| Loss                     | 只用均方誤差                           | `l2_weight`（1）、`l1_weight`（0）、`cos_weight`（0） | 原 repo `robomimic/config/bc_config.py:36-38`                                                                                                                                    |
+| 正規化                   | 無；影像只縮放到 `[0, 1]`              | `normalization_mapping`（`IDENTITY`）                 | 原 repo `robomimic/config/base_config.py:181`（observation）、`:225`（action）、`robomimic/utils/obs_utils.py:921`（影像）；LeRobot 已縮放影像（`datasets/io_utils.py:255-263`） |
+| Optimizer                | Adam                                   | `get_optimizer_preset()`                              | 原 repo `robomimic/config/bc_config.py:27`                                                                                                                                       |
+| Learning rate            | 1e-4，固定不變                         | `optimizer_lr`                                        | 原 repo `robomimic/config/bc_config.py:28`、`:30`（沒有衰減的 epoch）                                                                                                            |
+| Weight decay             | 0                                      | `optimizer_weight_decay`                              | 原 repo `robomimic/config/bc_config.py:33`                                                                                                                                       |
+| Gradient clipping        | 無                                     | `optimizer_grad_clip_norm`（0）                       | 原 repo `robomimic/config/base_config.py:239`；LeRobot 在 0 時不做 clipping（`scripts/lerobot_train.py:178`）                                                                    |
 
 LeRobot 會把 dataset 裡所有非 action 的 feature 都交給 policy
 （`policies/factory.py:305-306`），而 robomimic 是由每個實驗列出要用的
@@ -80,14 +80,14 @@ robomimic 的 `VisualCore`（原 repo `robomimic/scripts/generate_paper_configs.
 測試會用相同的權重和輸入，把每個部分和 robomimic 自己的模組比對
 （`tests/test_vision.py`）。
 
-| 部分                 | 行為                                                                     | 本專案           | 來源                                                                                                                                         |
-| -------------------- | ------------------------------------------------------------------------ | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| 裁切                 | 訓練時隨機裁切，其他時候中央裁切                                         | `RandomCrop`     | 原 repo `robomimic/models/obs_core.py:489`（`CropRandomizer`）、`:579`（評估時中央裁切）                                                     |
-| 隨機裁切的位移       | `floor(rand × (size − crop))`，84 裁 76 時為 0 到 7；最後一個位移永遠抽不到 | `RandomCrop`   | 原 repo `robomimic/utils/obs_utils.py:730`                                                                                                   |
-| 中央裁切的位移       | `floor((size − crop) / 2)`，84 裁 76 時為 4                              | `RandomCrop`     | 原 repo `robomimic/utils/obs_utils.py:278`                                                                                                   |
-| Backbone             | 去掉 average pool 與分類層的 ResNet-18，從頭訓練                         | `ImageEncoder`   | 原 repo `robomimic/models/base_nets.py:536`（`ResNet18Conv`）；`robomimic/scripts/generate_paper_configs.py:154`（`pretrained = False`）     |
-| Spatial softmax      | 1×1 卷積產生 32 個 keypoint，在位置上做 softmax，取 `[-1, 1]` 網格上的期望 `(x, y)` | `SpatialSoftmax` | 原 repo `robomimic/models/base_nets.py:1143`、`:1162`、`:1216`；temperature 固定為 1 且不加噪聲（`robomimic/scripts/generate_paper_configs.py:158-160`） |
-| 投影                 | Linear 層，把 32 × 2 個 keypoint 座標投影成 64 維特徵                    | `ImageEncoder`   | 原 repo `robomimic/models/obs_core.py:138`                                                                                                   |
+| 部分            | 行為                                                                                | 本專案           | 來源                                                                                                                                                     |
+| --------------- | ----------------------------------------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 裁切            | 訓練時隨機裁切，其他時候中央裁切                                                    | `RandomCrop`     | 原 repo `robomimic/models/obs_core.py:489`（`CropRandomizer`）、`:579`（評估時中央裁切）                                                                 |
+| 隨機裁切的位移  | `floor(rand × (size − crop))`，84 裁 76 時為 0 到 7；最後一個位移永遠抽不到         | `RandomCrop`     | 原 repo `robomimic/utils/obs_utils.py:730`                                                                                                               |
+| 中央裁切的位移  | `floor((size − crop) / 2)`，84 裁 76 時為 4                                         | `RandomCrop`     | 原 repo `robomimic/utils/obs_utils.py:278`                                                                                                               |
+| Backbone        | 去掉 average pool 與分類層的 ResNet-18，從頭訓練                                    | `ImageEncoder`   | 原 repo `robomimic/models/base_nets.py:536`（`ResNet18Conv`）；`robomimic/scripts/generate_paper_configs.py:154`（`pretrained = False`）                 |
+| Spatial softmax | 1×1 卷積產生 32 個 keypoint，在位置上做 softmax，取 `[-1, 1]` 網格上的期望 `(x, y)` | `SpatialSoftmax` | 原 repo `robomimic/models/base_nets.py:1143`、`:1162`、`:1216`；temperature 固定為 1 且不加噪聲（`robomimic/scripts/generate_paper_configs.py:158-160`） |
+| 投影            | Linear 層，把 32 × 2 個 keypoint 座標投影成 64 維特徵                               | `ImageEncoder`   | 原 repo `robomimic/models/obs_core.py:138`                                                                                                               |
 
 robomimic 會平均多個裁切的特徵（`robomimic/models/obs_core.py:589-598`）；論文實驗每張
 影像只裁一次（`robomimic/scripts/generate_paper_configs.py:168`），平均後就是該特徵本身，
@@ -107,11 +107,11 @@ convolution、裁切的位置編碼，以及可學習或加噪聲的 spatial sof
 （原 repo `robomimic/models/obs_nets.py:119`）。測試會把相同的相機權重載入 robomimic
 的 encoder，並比對輸出（`tests/test_observation_encoder.py`）。
 
-| 部分                 | 行為                                                     | 來源                                                                                                                                                                                    |
-| -------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 向量 observation     | 原樣串接                                                 | 原 repo `robomimic/config/base_config.py:284`（low-dim observation 沒有 encoder）、`robomimic/models/obs_nets.py:303-307`                                                               |
-| 每支相機             | 各自的裁切、`ImageEncoder` 與 ReLU                       | 原 repo `robomimic/models/obs_nets.py:287-289`（每個 key 一個 randomizer）、`:295`（encoder）、`:297`（activation）；ReLU 是預設的 `feature_activation`（`:440`、`:33`），`MIMO_MLP` 沿用預設值（`:608-611`） |
-| 特徵順序             | 依 policy input feature 的順序                           | 本專案；robomimic 則是把 observation key 排序（原 repo `robomimic/utils/file_utils.py:162`，經 `robomimic/scripts/train.py:242` 與 `robomimic/algo/algo.py:154-156` 傳入）              |
+| 部分             | 行為                               | 來源                                                                                                                                                                                                          |
+| ---------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 向量 observation | 原樣串接                           | 原 repo `robomimic/config/base_config.py:284`（low-dim observation 沒有 encoder）、`robomimic/models/obs_nets.py:303-307`                                                                                     |
+| 每支相機         | 各自的裁切、`ImageEncoder` 與 ReLU | 原 repo `robomimic/models/obs_nets.py:287-289`（每個 key 一個 randomizer）、`:295`（encoder）、`:297`（activation）；ReLU 是預設的 `feature_activation`（`:440`、`:33`），`MIMO_MLP` 沿用預設值（`:608-611`） |
+| 特徵順序         | 依 policy input feature 的順序     | 本專案；robomimic 則是把 observation key 排序（原 repo `robomimic/utils/file_utils.py:162`，經 `robomimic/scripts/train.py:242` 與 `robomimic/algo/algo.py:154-156` 傳入）                                    |
 
 robomimic 排序後，相機與向量 observation 會交錯排列；以 image 實驗為例，順序是
 `agentview_image`、`robot0_eef_pos`、`robot0_eef_quat`、`robot0_eye_in_hand_image`、
@@ -127,11 +127,11 @@ robomimic 排序後，相機與向量 observation 會交錯排列；以 image �
 recurrent 與 transformer actor 可以重用同一個 encoder。測試會載入 robomimic 的權重，
 依 §4 的方式重新排列第一層的輸入欄位，再比對輸出的 action（`tests/test_actor.py`）。
 
-| 部分        | 行為                                                   | 來源                                                                                                                                            |
-| ----------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| MLP         | `actor_layer_dims` 的每個大小各一層 Linear 加 ReLU     | 原 repo `robomimic/models/obs_nets.py:617-623`；最後一個大小是 MLP 的輸出，同樣接 ReLU（`:623`、`robomimic/models/base_nets.py:256-258`）       |
-| Action head | Linear 層，輸出 action 維度                            | 原 repo `robomimic/models/obs_nets.py:627`、`:392`（`ObservationDecoder`）                                                                      |
-| 輸出        | `tanh`，使 action 落在 `[-1, 1]`                       | 原 repo `robomimic/models/policy_nets.py:107`                                                                                                  |
+| 部分        | 行為                                               | 來源                                                                                                                                      |
+| ----------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| MLP         | `actor_layer_dims` 的每個大小各一層 Linear 加 ReLU | 原 repo `robomimic/models/obs_nets.py:617-623`；最後一個大小是 MLP 的輸出，同樣接 ReLU（`:623`、`robomimic/models/base_nets.py:256-258`） |
+| Action head | Linear 層，輸出 action 維度                        | 原 repo `robomimic/models/obs_nets.py:627`、`:392`（`ObservationDecoder`）                                                                |
+| 輸出        | `tanh`，使 action 落在 `[-1, 1]`                   | 原 repo `robomimic/models/policy_nets.py:107`                                                                                             |
 
 robomimic 把 MLP 拆成隱藏層與輸出層（`robomimic/models/obs_nets.py:619-620`），但兩者
 最後都接 ReLU，結果就是每個大小各一層 Linear 加 ReLU，`MLPActor` 也就這樣建立。
@@ -142,14 +142,14 @@ robomimic 把 MLP 拆成隱藏層與輸出層（`robomimic/models/obs_nets.py:61
 robomimic 的 `BC` class（原 repo `robomimic/algo/bc.py:78`）。測試會把相同權重載入
 robomimic 的 `BC` 演算法，比對 loss 與 action（`tests/test_policy.py`）。
 
-| Method                 | 行為                                                                              | 來源                                                                                                       |
-| ---------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `forward`              | `l2_weight` × 均方誤差 + `l1_weight` × smooth L1 + `cos_weight` × cosine loss；各項都會記錄 | 原 repo `robomimic/algo/bc.py:182-192`                                                             |
-| Cosine loss            | 前三個 action 維度（末端執行器的位移）上 1 − cosine similarity 的平均            | 原 repo `robomimic/algo/bc.py:185`、`robomimic/utils/loss_utils.py:22-23`                                 |
-| `select_action`        | actor 對當下 observation 輸出的 action，不計算梯度                               | 原 repo `robomimic/algo/bc.py:239-251`                                                                     |
-| `predict_action_chunk` | 同一個 action，作為長度 1 的 chunk                                               | 本專案：LeRobot 預期 `(B, chunk_size, action_dim)`（Adding a Policy 指南）；BC 只預測一個 action           |
-| `reset`                | 沒有需要重設的狀態                                                               | 原 repo `robomimic/algo/algo.py:365`（BC 沿用基底類別空的 `reset`）                                        |
-| `get_optim_params`     | 所有參數放在同一組                                                               | 原 repo `robomimic/algo/algo.py:169-193`（policy 網路只有一個 optimizer）                                  |
+| Method                 | 行為                                                                                        | 來源                                                                                             |
+| ---------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `forward`              | `l2_weight` × 均方誤差 + `l1_weight` × smooth L1 + `cos_weight` × cosine loss；各項都會記錄 | 原 repo `robomimic/algo/bc.py:182-192`                                                           |
+| Cosine loss            | 前三個 action 維度（末端執行器的位移）上 1 − cosine similarity 的平均                       | 原 repo `robomimic/algo/bc.py:185`、`robomimic/utils/loss_utils.py:22-23`                        |
+| `select_action`        | actor 對當下 observation 輸出的 action，不計算梯度                                          | 原 repo `robomimic/algo/bc.py:239-251`                                                           |
+| `predict_action_chunk` | 同一個 action，作為長度 1 的 chunk                                                          | 本專案：LeRobot 預期 `(B, chunk_size, action_dim)`（Adding a Policy 指南）；BC 只預測一個 action |
+| `reset`                | 沒有需要重設的狀態                                                                          | 原 repo `robomimic/algo/algo.py:365`（BC 沿用基底類別空的 `reset`）                              |
+| `get_optim_params`     | 所有參數放在同一組                                                                          | 原 repo `robomimic/algo/algo.py:169-193`（policy 網路只有一個 optimizer）                        |
 
 import robomimic 的 `BC` 時會一併 import 所有其他演算法（原 repo
 `robomimic/algo/__init__.py`），因此測試需要 `diffusers` 與 `imageio`。它們是 dev

@@ -23,7 +23,7 @@ ENV_STATE_KEY = "object"
 IMAGE_SUFFIX = "_image"
 MASKS_FILE = "meta/robomimic_masks.json"
 
-# Above this many bytes of raw pixels, images are stored as MP4 videos instead of lossless PNGs.
+# Above this many bytes of raw pixels, images are stored as MP4 videos instead of lossless PNG images.
 VIDEO_THRESHOLD_BYTES = 2 * 1024**3
 
 
