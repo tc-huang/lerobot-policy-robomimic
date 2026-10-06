@@ -15,7 +15,8 @@ class RobomimicEnv(gym.Env):
 
     Observations follow LeRobot's env convention: `pixels` holds one upright (H, W, 3) image per
     camera, `agent_pos` the `state_keys` concatenated, and `environment_state` the object state.
-    An episode ends when the task succeeds or after `episode_length` steps.
+    An episode ends when the task succeeds or after `episode_length` steps. The task description
+    is the env args' language instruction, "lang", or else the env name.
     """
 
     metadata = {"render_modes": ["rgb_array"]}
@@ -54,7 +55,7 @@ class RobomimicEnv(gym.Env):
         self.metadata = {**self.metadata, "render_fps": env_args["env_kwargs"]["control_freq"]}
         self.camera_names = list(camera_names)
         self.state_keys = list(state_keys)
-        self.task_description = env_args["env_name"]
+        self.task_description = env_args.get("lang", env_args["env_name"])
         self._max_episode_steps = episode_length
 
         low, high = self._env.action_spec

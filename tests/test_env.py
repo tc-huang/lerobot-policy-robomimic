@@ -65,6 +65,13 @@ def env_config(tmp_path: Path) -> RobomimicEnvConfig:
     return RobomimicEnvConfig(env_args_path=str(path))
 
 
+def test_task_description_is_the_language_instruction(env_config):
+    env = env_config.make_env(LIFT_ENV_ARGS | {"lang": "lift the cube"}, camera_names=[])
+
+    assert env.task_description == "lift the cube"
+    assert env_config.make_env(LIFT_ENV_ARGS, camera_names=[]).task_description == "Lift"
+
+
 def test_config_follows_the_env_args(env_config):
     assert (env_config.task, env_config.fps, env_config.episode_length) == ("Lift", 20, 400)
     assert env_config.features["action"].shape == (7,)

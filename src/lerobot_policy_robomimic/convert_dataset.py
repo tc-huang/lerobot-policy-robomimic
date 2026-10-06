@@ -77,7 +77,8 @@ def convert(
     """Writes every demo of `hdf5_path` as one episode, in numeric demo order.
 
     The robomimic masks and the robosuite settings the demos were recorded with are kept next
-    to LeRobot's metadata, in `MASKS_FILE` and `ENV_ARGS_FILE`.
+    to LeRobot's metadata, in `MASKS_FILE` and `ENV_ARGS_FILE`. The env args also keep `task`
+    under "lang", where robomimic looks for an env's language instruction.
     """
     with h5py.File(hdf5_path, "r") as f:
         data = f["data"]
@@ -120,7 +121,7 @@ def convert(
         }
     masks_path = dataset.root / MASKS_FILE
     masks_path.write_text(json.dumps({"demo_keys": demo_keys, "masks": masks}, indent=2) + "\n")
-    (dataset.root / ENV_ARGS_FILE).write_text(json.dumps(env_args, indent=2) + "\n")
+    (dataset.root / ENV_ARGS_FILE).write_text(json.dumps(env_args | {"lang": task}, indent=2) + "\n")
     return dataset
 
 
