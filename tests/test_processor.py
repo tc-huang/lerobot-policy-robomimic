@@ -4,7 +4,12 @@ from lerobot.configs import FeatureType, PolicyFeature
 from lerobot.policies.factory import make_pre_post_processors
 from lerobot.utils.constants import ACTION, OBS_IMAGES, OBS_STATE
 
-from lerobot_policy_robomimic import RobomimicBCConfig, RobomimicBCRNNConfig, RobomimicBCTransformerConfig
+from lerobot_policy_robomimic import (
+    RobomimicBCConfig,
+    RobomimicBCRNNConfig,
+    RobomimicBCTransformerConfig,
+    RobomimicBCVAEConfig,
+)
 
 STATS = {
     OBS_STATE: {"mean": torch.full((9,), 3.0), "std": torch.full((9,), 2.0)},
@@ -24,7 +29,8 @@ def make_config(config_class):
 
 
 @pytest.mark.parametrize(
-    "config_class", [RobomimicBCConfig, RobomimicBCRNNConfig, RobomimicBCTransformerConfig]
+    "config_class",
+    [RobomimicBCConfig, RobomimicBCRNNConfig, RobomimicBCTransformerConfig, RobomimicBCVAEConfig],
 )
 def test_pipelines_keep_values_unnormalized(config_class):
     preprocessor, postprocessor = make_pre_post_processors(make_config(config_class), dataset_stats=STATS)

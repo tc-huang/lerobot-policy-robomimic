@@ -55,6 +55,9 @@ robomimic 在 image 與 low-dim 實驗中對所有演算法都使用相同設定
 template 是在 low-dim 資料上以 `--batch_size=100 --steps=200000` 訓練（§13）；AdamW 與
 `robomimic_linear` learning rate schedule 由 policy 自行設定。
 
+若要訓練 BC-VAE，使用 `--policy.type=robomimic_bc_vae`。論文沒有 BC-VAE 的實驗；robomimic
+的論文 config 只依資料類型決定 batch size 與訓練長度，因此沿用上面 BC 的數值（§17）。
+
 若要使用 robomimic model zoo 的 BC-RNN checkpoint（原 repo `docs/model_zoo/robomimic_v0.1.md`），
 先下載，再轉換成 LeRobot 的 policy 目錄（§12）：
 
@@ -664,3 +667,14 @@ loss、記錄的數值與 action（`tests/test_policy_bc_vae.py`）。
 `BC_VAE` 也會從 batch 讀取 `freeze_encoder` 旗標，用來擋住流向 posterior 的梯度
 （`robomimic/algo/bc.py:419`）。只有 BCQ 會為自己的 action sampler 設定它
 （`robomimic/algo/bcq.py:242-243`），因此不移植。
+
+### 20. Processor
+
+`make_robomimic_bc_vae_pre_post_processors` 回傳和 BC 相同的預設 pipeline（§7），不會正規化
+任何 feature（`tests/test_processor.py`）。
+
+在轉換後的 Lift image dataset 的 `train` mask 上執行 20 步 `lerobot-train`，以可學習、依
+observation 條件化的混合 prior 訓練 BC-VAE，儲存 checkpoint，並連同 processor 載入後執行 12 步
+`select_action`。這個 policy 有 6800 萬個參數，大多來自三個 observation encoder、每個各兩支
+相機的六個 ResNet-18（§18）。使用混合 prior 時，記錄的 KL loss 可能是負的，因為 robomimic 只用
+一個 posterior 樣本估計它（§18）。

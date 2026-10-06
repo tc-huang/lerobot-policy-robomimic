@@ -59,6 +59,10 @@ template trains on low-dim data with `--batch_size=100 --steps=200000` (§13);
 the policy sets AdamW and the `robomimic_linear` learning rate schedule
 itself.
 
+For BC-VAE, use `--policy.type=robomimic_bc_vae`. The paper has no BC-VAE
+experiment; robomimic's paper configs pick the batch size and length by data
+type alone, so the values above for BC apply (§17).
+
 To run a BC-RNN checkpoint from robomimic's model zoo (Repo
 `docs/model_zoo/robomimic_v0.1.md`), download it and convert it into a
 LeRobot policy directory (§12):
@@ -751,3 +755,17 @@ weight of 0.5, and compare the loss, the logged values, and the actions
 gradient into the posterior (`robomimic/algo/bc.py:419`). Only BCQ sets it,
 for its own action sampler (`robomimic/algo/bcq.py:242-243`), so it is not
 ported.
+
+### 20. Processor
+
+`make_robomimic_bc_vae_pre_post_processors` returns the same default
+pipelines as BC (§7), which leave every feature unnormalized
+(`tests/test_processor.py`).
+
+A 20-step `lerobot-train` run on the `train` mask of the converted Lift image
+dataset trains BC-VAE with a learned, observation-conditioned mixture prior,
+saves a checkpoint, and runs 12 steps of `select_action` after loading it
+back with its processors. The policy has 68M parameters, mostly the six
+ResNet-18s of three observation encoders with two cameras each (§18). The
+logged KL loss can be negative with a mixture prior, since robomimic
+estimates it from one posterior sample (§18).
