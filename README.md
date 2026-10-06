@@ -10,6 +10,44 @@ ported policies can be trained with `lerobot-train` and evaluated with
 `lerobot-eval`, while following the network architectures and training
 recipes of the original implementation as closely as possible.
 
+## Usage
+
+Install the plugin with the dependencies of `lerobot-train`:
+
+```bash
+uv sync --extra training
+```
+
+Convert a robomimic hdf5 file that contains observations into a
+LeRobotDataset. Image files are generated from robomimic's raw files with its
+`dataset_states_to_obs.py` (Repo `robomimic/scripts/extract_obs_from_raw_datasets.sh:59-61`).
+
+```bash
+uv run python -m lerobot_policy_robomimic.convert_dataset \
+    --hdf5 data/robomimic/lift/ph/image_v15.hdf5 \
+    --repo-id <user>/robomimic_lift_ph_image \
+    --task "lift the cube"
+```
+
+Train BC on the demos of robomimic's `train` mask, with the batch size and
+length of robomimic's image experiments (§2):
+
+```bash
+ROOT=~/.cache/huggingface/lerobot/<user>/robomimic_lift_ph_image
+EPISODES="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["masks"]["train"])' $ROOT/meta/robomimic_masks.json)"
+
+uv run lerobot-train \
+    --policy.type=robomimic_bc \
+    --dataset.repo_id=<user>/robomimic_lift_ph_image \
+    --dataset.episodes="$EPISODES" \
+    --batch_size=16 \
+    --steps=300000 \
+    --policy.push_to_hub=false
+```
+
+For a low-dim experiment, convert the low-dim file instead, add
+`--policy.use_env_state=true`, and use `--batch_size=100 --steps=200000`.
+
 ## Design
 
 Each robomimic policy is rebuilt here from scratch, one component at a time.
@@ -184,3 +222,17 @@ Importing robomimic's `BC` also imports every other algorithm
 (Repo `robomimic/algo/__init__.py`), so the test needs `diffusers` and
 `imageio`. They are dev dependencies, with `diffusers` bounded as in
 LeRobot's `diffusion` extra.
+
+### 7. Processor
+
+`make_robomimic_bc_pre_post_processors` returns LeRobot's default pipelines
+(`processor/factory.py:116-128`, `:173-174`). Before the policy they rename
+nothing, add the batch dimension, move tensors to the policy's device, and
+normalize; after it they unnormalize and move the action to the CPU. With the
+`IDENTITY` mapping of §2, normalization leaves every value as it is, even when
+dataset statistics are given (`tests/test_processor.py`).
+
+A 20-step `lerobot-train` run on the converted Lift image dataset trains,
+saves a checkpoint, and loads it back with its processors for
+`select_action`. `lerobot-train` needs `lerobot[training]`, available here as
+the `training` extra, as in `lerobot_policy_openvla_oft`.

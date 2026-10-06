@@ -8,6 +8,44 @@ policy 插件，將 [robomimic](https://robomimic.github.io/)（Mandlekar 等人
 為 LeRobot 的 policy type。移植後的 policy 可以用 `lerobot-train` 訓練、以
 `lerobot-eval` 評估，網路架構與訓練設定則盡可能貼近原始實作。
 
+## 使用方式
+
+安裝插件與 `lerobot-train` 需要的依賴：
+
+```bash
+uv sync --extra training
+```
+
+把含有 observation 的 robomimic hdf5 檔轉成 LeRobotDataset。影像檔是用 robomimic 的
+`dataset_states_to_obs.py` 從 raw 檔產生的（原 repo
+`robomimic/scripts/extract_obs_from_raw_datasets.sh:59-61`）。
+
+```bash
+uv run python -m lerobot_policy_robomimic.convert_dataset \
+    --hdf5 data/robomimic/lift/ph/image_v15.hdf5 \
+    --repo-id <user>/robomimic_lift_ph_image \
+    --task "lift the cube"
+```
+
+用 robomimic `train` mask 中的 demo 訓練 BC，batch size 與訓練長度沿用 robomimic 的
+image 實驗（§2）：
+
+```bash
+ROOT=~/.cache/huggingface/lerobot/<user>/robomimic_lift_ph_image
+EPISODES="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["masks"]["train"])' $ROOT/meta/robomimic_masks.json)"
+
+uv run lerobot-train \
+    --policy.type=robomimic_bc \
+    --dataset.repo_id=<user>/robomimic_lift_ph_image \
+    --dataset.episodes="$EPISODES" \
+    --batch_size=16 \
+    --steps=300000 \
+    --policy.push_to_hub=false
+```
+
+若要做 low-dim 實驗，改轉換 low-dim 檔，加上 `--policy.use_env_state=true`，並使用
+`--batch_size=100 --steps=200000`。
+
 ## 設計
 
 本專案從零開始重建每個 robomimic policy，一次建構一個元件。以下每一節說明一個元件，
@@ -165,3 +203,16 @@ robomimic 的 `BC` 演算法，比對 loss 與 action（`tests/test_policy.py`�
 import robomimic 的 `BC` 時會一併 import 所有其他演算法（原 repo
 `robomimic/algo/__init__.py`），因此測試需要 `diffusers` 與 `imageio`。它們是 dev
 依賴，`diffusers` 的版本範圍沿用 LeRobot 的 `diffusion` extra。
+
+### 7. Processor
+
+`make_robomimic_bc_pre_post_processors` 回傳 LeRobot 的預設 pipeline
+（`processor/factory.py:116-128`、`:173-174`）。policy 之前的 pipeline 不重新命名任何
+key、加上 batch 維度、把 tensor 移到 policy 的裝置並做正規化；policy 之後的 pipeline
+做反正規化並把 action 移回 CPU。在 §2 的 `IDENTITY` 對應下，即使給了 dataset 統計值，
+正規化也不會改變任何數值（`tests/test_processor.py`）。
+
+在轉換好的 Lift image dataset 上跑 20 步的 `lerobot-train`，可以完成訓練、存下
+checkpoint，並連同 processor 讀回後執行 `select_action`。`lerobot-train` 需要
+`lerobot[training]`，本專案和 `lerobot_policy_openvla_oft` 一樣以 `training` extra
+提供。
