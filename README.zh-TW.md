@@ -167,8 +167,10 @@ robomimic 以 MIT License 釋出。本專案重新實作其網路，執行時不
 
 `RobomimicBCConfig` 註冊 policy type `robomimic_bc`。預設值沿用 robomimic 在
 proficient-human（PH）資料集上的 image 實驗設定。下表中除了 `actor_layer_dims` 以外的設定，
-都來自 `lerobot_policy_robomimic/base_config.py` 的 `RobomimicPolicyConfig`，由本專案所有
-robomimic policy 共用；它本身不是 policy type。
+都來自 `lerobot_policy_robomimic/base_config.py`，裡面有兩個本身不是 policy type 的 class：
+`RobomimicPolicyConfig` 放本專案所有 robomimic policy 共用的 observation、encoder 與
+optimizer 設定；它的子類別 `RobomimicActorConfig` 再加上 BC、BC-RNN 與 BC-Transformer
+共用的 action head 設定。
 
 | 設定                         | 預設值                                 | Config 欄位                                                                           | 來源                                                                                                                                                                             |
 | ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

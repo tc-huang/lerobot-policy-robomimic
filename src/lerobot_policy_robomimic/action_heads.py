@@ -7,7 +7,7 @@ import torch
 from torch import Tensor, distributions, nn
 from torch.nn.functional import cosine_similarity, mse_loss, smooth_l1_loss, softplus
 
-from .base_config import RobomimicPolicyConfig
+from .base_config import RobomimicActorConfig
 
 
 class ActionHead(nn.Module, abc.ABC):
@@ -143,7 +143,7 @@ class GMMHead(ActionHead):
         return self(features).sample()
 
 
-def make_action_head(config: RobomimicPolicyConfig, input_dim: int) -> ActionHead:
+def make_action_head(config: RobomimicActorConfig, input_dim: int) -> ActionHead:
     """Returns the Gaussian, GMM, or deterministic head that `config` asks for, in that precedence."""
     action_dim = config.action_feature.shape[0]
     if config.use_gaussian:

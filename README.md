@@ -183,9 +183,12 @@ networks instead of importing robomimic at runtime.
 
 `RobomimicBCConfig` registers the policy type `robomimic_bc`. Defaults follow
 robomimic's image experiments on the proficient-human (PH) datasets. Every
-setting below except `actor_layer_dims` comes from `RobomimicPolicyConfig` in
-`lerobot_policy_robomimic/base_config.py`, which all robomimic policies here
-share; it is not a policy type itself.
+setting below except `actor_layer_dims` comes from
+`lerobot_policy_robomimic/base_config.py`, which holds two classes that are
+not policy types themselves: `RobomimicPolicyConfig`, with the observation,
+encoder, and optimizer settings that all robomimic policies here share, and
+its subclass `RobomimicActorConfig`, which adds the action head settings that
+BC, BC-RNN, and BC-Transformer share.
 
 | Setting                          | Default                                               | Config field                                                                       | Source                                                                                                                                                                                   |
 | -------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -3,13 +3,13 @@ from dataclasses import dataclass
 from lerobot.configs import PreTrainedConfig
 from lerobot.optim import AdamWConfig
 
-from .base_config import RobomimicPolicyConfig
+from .base_config import RobomimicActorConfig
 from .schedulers import RobomimicLinearSchedulerConfig
 
 
 @PreTrainedConfig.register_subclass("robomimic_bc_transformer")
 @dataclass
-class RobomimicBCTransformerConfig(RobomimicPolicyConfig):
+class RobomimicBCTransformerConfig(RobomimicActorConfig):
     """Configuration for robomimic's BC-Transformer policy.
 
     Transformer, optimizer, and schedule defaults follow robomimic's tuned template,

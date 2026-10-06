@@ -2,12 +2,12 @@ from dataclasses import dataclass
 
 from lerobot.configs import PreTrainedConfig
 
-from .base_config import RobomimicPolicyConfig
+from .base_config import RobomimicActorConfig
 
 
 @PreTrainedConfig.register_subclass("robomimic_bc")
 @dataclass
-class RobomimicBCConfig(RobomimicPolicyConfig):
+class RobomimicBCConfig(RobomimicActorConfig):
     """Configuration for robomimic's BC policy.
 
     Args:

@@ -2,12 +2,12 @@ from dataclasses import dataclass
 
 from lerobot.configs import PreTrainedConfig
 
-from .base_config import RobomimicPolicyConfig
+from .base_config import RobomimicActorConfig
 
 
 @PreTrainedConfig.register_subclass("robomimic_bc_rnn")
 @dataclass
-class RobomimicBCRNNConfig(RobomimicPolicyConfig):
+class RobomimicBCRNNConfig(RobomimicActorConfig):
     """Configuration for robomimic's BC-RNN policy.
 
     For robomimic's low-dim experiments, also set `rnn_hidden_dim=400`.
