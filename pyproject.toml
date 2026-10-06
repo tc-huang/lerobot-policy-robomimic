@@ -1,5 +1,5 @@
 [project]
-name = "lerobot-policy-robomimic"
+name = "lerobot_policy_robomimic"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
