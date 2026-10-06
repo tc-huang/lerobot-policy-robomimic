@@ -23,14 +23,14 @@ class RandomCrop(nn.Module):
             return images[..., top : top + crop_h, left : left + crop_w]
 
         batch = images.shape[0]
-        top = (torch.rand(batch, device=images.device) * (height - crop_h)).long()
-        left = (torch.rand(batch, device=images.device) * (width - crop_w)).long()
-        rows = top[:, None] + torch.arange(crop_h, device=images.device)
-        cols = left[:, None] + torch.arange(crop_w, device=images.device)
-        crops = images[
-            torch.arange(batch, device=images.device)[:, None, None], :, rows[:, :, None], cols[:, None]
-        ]
-        return crops.permute(0, 3, 1, 2)
+        tops = (torch.rand(batch) * (height - crop_h)).long().tolist()
+        lefts = (torch.rand(batch) * (width - crop_w)).long().tolist()
+        return torch.stack(
+            [
+                image[:, top : top + crop_h, left : left + crop_w]
+                for image, top, left in zip(images, tops, lefts, strict=True)
+            ]
+        )
 
 
 class SpatialSoftmax(nn.Module):

@@ -20,6 +20,7 @@ def test_random_crop_takes_windows_like_robomimic():
     offsets = set()
     for _ in range(200):
         crops = RandomCrop(CROP).train()(images)
+        assert crops.is_contiguous()
         for image, crop in zip(images, crops, strict=True):
             top, left = divmod(int(crop[0, 0, 0] - image[0, 0, 0]), 84)
             torch.testing.assert_close(crop, image[:, top : top + 76, left : left + 76])

@@ -99,6 +99,12 @@ with one crop per image, as in the paper experiments
 (`robomimic/scripts/generate_paper_configs.py:168`), the average is the
 feature itself, so `RandomCrop` takes exactly one.
 
+`RandomCrop` stacks one slice per image instead of gathering all crops with
+advanced indexing. Gathered crops are not contiguous, and on Apple's MPS
+backend the backward pass through the ResNet then fails with `view size is
+not compatible with input tensor's size and stride` (this port; found by the
+`lerobot-train` run in §7).
+
 robomimic stores the spatial softmax grid and temperature in the checkpoint
 (`robomimic/models/base_nets.py:1159`, `:1167`). Here they are fixed values
 rebuilt from the feature map size, so they are left out of the state dict.

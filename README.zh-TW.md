@@ -93,6 +93,11 @@ robomimic 會平均多個裁切的特徵（`robomimic/models/obs_core.py:589-598
 影像只裁一次（`robomimic/scripts/generate_paper_configs.py:168`），平均後就是該特徵本身，
 因此 `RandomCrop` 只取一個裁切。
 
+`RandomCrop` 對每張影像各切一塊再疊起來，而不是用 advanced indexing 一次取出所有裁切。
+用 indexing 取出的裁切不是連續的 tensor，在 Apple 的 MPS backend 上，經過 ResNet 的
+backward 會失敗，錯誤訊息是 `view size is not compatible with input tensor's size
+and stride`（本專案；由 §7 的 `lerobot-train` 執行發現）。
+
 robomimic 把 spatial softmax 的網格與 temperature 存在 checkpoint 裡
 （`robomimic/models/base_nets.py:1159`、`:1167`）。本專案中它們是依特徵圖大小重建的
 固定值，因此不放進 state dict。
