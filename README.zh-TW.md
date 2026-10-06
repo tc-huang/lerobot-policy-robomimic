@@ -62,7 +62,9 @@ robomimic 在 image 與 low-dim 實驗中對所有演算法都使用相同設定
   [What Matters in Learning from Offline Human Demonstrations for Robot Manipulation](https://arxiv.org/abs/2108.03298)，
   CoRL 2021。
 - **原 repo**：[ARISE-Initiative/robomimic](https://github.com/ARISE-Initiative/robomimic)
-  的 `d309eae`，以 submodule 放在 `third_party/robomimic`。路徑皆相對於該目錄。
+  的 `d309eae`，以 submodule 放在 `third_party/robomimic`。路徑皆相對於該目錄；前綴
+  `v0.1.0:` 表示該 tag 的路徑，可用 `git -C third_party/robomimic show v0.1.0:<path>`
+  讀取。
 - **LeRobot**：LeRobot v0.6.1 的
   [Adding a Policy](https://huggingface.co/docs/lerobot/v0.6.1/en/bring_your_own_policies)
   指南或原始碼。路徑皆相對於安裝後的 `lerobot` 套件。
@@ -96,6 +98,7 @@ robomimic policy 共用；它本身不是 policy type。
 | Action 預測              | 每個 observation 預測一個 action       | `action_delta_indices`                                | 原 repo `robomimic/algo/bc.py:113`                                                                                                                                               |
 | MLP 隱藏層大小           | (1024, 1024)                           | `actor_layer_dims`                                    | 原 repo `robomimic/config/bc_config.py:41`、`robomimic/scripts/generate_paper_configs.py:367`                                                                                    |
 | 相機裁切                 | 訓練時隨機裁 76×76，推論時中央裁 76×76 | `crop_shape`                                          | 原 repo `robomimic/scripts/generate_paper_configs.py:163-168`                                                                                                                    |
+| 訓練以外的裁切           | 中央                                   | `random_crop_at_inference`（False）                   | 原 repo `robomimic/models/obs_core.py:579`；robomimic v0.1 則是隨機裁切（`v0.1.0:robomimic/models/base_nets.py:1066`）                                                           |
 | Spatial softmax keypoint | 32                                     | `spatial_softmax_num_kp`                              | 原 repo `robomimic/scripts/generate_paper_configs.py:157`                                                                                                                        |
 | 每支相機的特徵大小       | 64                                     | `image_feature_dim`                                   | 原 repo `robomimic/scripts/generate_paper_configs.py:152`                                                                                                                        |
 | Action head              | 5 個高斯分佈的混合                     | `use_gmm`（True）、`gmm_num_modes`（5）               | 原 repo `robomimic/scripts/generate_paper_configs.py:368`（人類示範資料集）、`robomimic/config/bc_config.py:53`                                                                  |
@@ -142,6 +145,12 @@ robomimic 的 `VisualCore`（原 repo `robomimic/scripts/generate_paper_configs.
 robomimic 會平均多個裁切的特徵（`robomimic/models/obs_core.py:589-598`）；論文實驗每張
 影像只裁一次（`robomimic/scripts/generate_paper_configs.py:168`），平均後就是該特徵本身，
 因此 `RandomCrop` 只取一個裁切。
+
+訓練出 model zoo checkpoint 的 robomimic v0.1 沒有另外的評估路徑：`CropRandomizer.forward_in`
+永遠隨機裁切（原 repo `v0.1.0:robomimic/models/base_nets.py:1066`，於
+`v0.1.0:robomimic/models/obs_nets.py:271` 呼叫），中央裁切是 v0.3 才加入的（commit
+`40e427a`）。因此 model zoo 的成功率是在推論時隨機裁切的情況下量測的。
+`random_crop_at_inference=true` 可以讓從 model zoo 轉換來的 checkpoint 恢復這個行為。
 
 `RandomCrop` 對每張影像各切一塊再疊起來，而不是用 advanced indexing 一次取出所有裁切。
 用 indexing 取出的裁切不是連續的 tensor，在 Apple 的 MPS backend 上，經過 ResNet 的

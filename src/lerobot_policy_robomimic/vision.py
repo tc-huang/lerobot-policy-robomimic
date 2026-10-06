@@ -8,17 +8,21 @@ from torchvision.models import resnet18
 
 
 class RandomCrop(nn.Module):
-    """Crops images at a random position in training and at the center otherwise."""
+    """Crops images at a random position in training and at the center otherwise.
 
-    def __init__(self, crop_shape: tuple[int, int]):
+    With `random_at_inference`, images are cropped at random positions outside training too.
+    """
+
+    def __init__(self, crop_shape: tuple[int, int], random_at_inference: bool = False):
         super().__init__()
         self.crop_shape = crop_shape
+        self.random_at_inference = random_at_inference
 
     def forward(self, images: Tensor) -> Tensor:
         """Crops (B, C, H, W) images to (B, C, crop_height, crop_width)."""
         crop_h, crop_w = self.crop_shape
         height, width = images.shape[-2:]
-        if not self.training:
+        if not (self.training or self.random_at_inference):
             top, left = (height - crop_h) // 2, (width - crop_w) // 2
             return images[..., top : top + crop_h, left : left + crop_w]
 

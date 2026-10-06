@@ -30,6 +30,14 @@ def test_random_crop_takes_windows_like_robomimic():
     assert {left for _, left in offsets} == set(range(8))
 
 
+def test_random_crop_can_stay_random_at_inference():
+    torch.manual_seed(0)
+    images = torch.rand(64, 3, 84, 84)
+    crop = RandomCrop(CROP, random_at_inference=True).eval()
+
+    assert not torch.equal(crop(images), RandomCrop(CROP).eval()(images))
+
+
 def test_spatial_softmax_matches_robomimic():
     torch.manual_seed(0)
     ours = SpatialSoftmax(in_channels=512, height=3, width=3, num_kp=32)

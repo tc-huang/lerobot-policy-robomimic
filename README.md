@@ -66,7 +66,8 @@ Sources are cited as follows:
   CoRL 2021.
 - **Repo**: [ARISE-Initiative/robomimic](https://github.com/ARISE-Initiative/robomimic)
   at `d309eae`, vendored as the `third_party/robomimic` submodule. Paths are
-  relative to that directory.
+  relative to that directory; a `v0.1.0:` prefix marks a path at that tag,
+  readable with `git -C third_party/robomimic show v0.1.0:<path>`.
 - **LeRobot**: LeRobot v0.6.1, either the
   [Adding a Policy](https://huggingface.co/docs/lerobot/v0.6.1/en/bring_your_own_policies)
   guide or its source. Paths are relative to the installed `lerobot` package.
@@ -102,6 +103,7 @@ share; it is not a policy type itself.
 | Action prediction              | One action per observation                          | `action_delta_indices`                             | Repo `robomimic/algo/bc.py:113`                                                                                                                                                          |
 | MLP hidden sizes               | (1024, 1024)                                        | `actor_layer_dims`                                 | Repo `robomimic/config/bc_config.py:41`, `robomimic/scripts/generate_paper_configs.py:367`                                                                                               |
 | Camera crop                    | Random 76×76 in training, center 76×76 at inference | `crop_shape`                                       | Repo `robomimic/scripts/generate_paper_configs.py:163-168`                                                                                                                               |
+| Crop outside training          | Center                                              | `random_crop_at_inference` (False)                 | Repo `robomimic/models/obs_core.py:579`; robomimic v0.1 crops at random instead (`v0.1.0:robomimic/models/base_nets.py:1066`)                                                            |
 | Spatial softmax keypoints      | 32                                                  | `spatial_softmax_num_kp`                           | Repo `robomimic/scripts/generate_paper_configs.py:157`                                                                                                                                   |
 | Feature size per camera        | 64                                                  | `image_feature_dim`                                | Repo `robomimic/scripts/generate_paper_configs.py:152`                                                                                                                                   |
 | Action head                    | Mixture of 5 Gaussians                              | `use_gmm` (True), `gmm_num_modes` (5)              | Repo `robomimic/scripts/generate_paper_configs.py:368` (human datasets), `robomimic/config/bc_config.py:53`                                                                              |
@@ -151,6 +153,14 @@ robomimic averages the features of several crops (`robomimic/models/obs_core.py:
 with one crop per image, as in the paper experiments
 (`robomimic/scripts/generate_paper_configs.py:168`), the average is the
 feature itself, so `RandomCrop` takes exactly one.
+
+robomimic v0.1, which trained the model zoo's checkpoints, had no separate
+evaluation path: `CropRandomizer.forward_in` always took a random crop
+(Repo `v0.1.0:robomimic/models/base_nets.py:1066`, called at
+`v0.1.0:robomimic/models/obs_nets.py:271`), and the center crop arrived in
+v0.3 (commit `40e427a`). The model zoo's success rates were therefore measured
+with random crops at inference. `random_crop_at_inference=true` restores that
+behavior for checkpoints converted from the model zoo.
 
 `RandomCrop` stacks one slice per image instead of gathering all crops with
 advanced indexing. Gathered crops are not contiguous, and on Apple's MPS

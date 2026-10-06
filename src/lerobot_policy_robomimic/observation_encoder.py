@@ -24,6 +24,7 @@ class ObservationEncoder(nn.Module):
         crop_shape: tuple[int, int] | None,
         num_kp: int,
         image_feature_dim: int,
+        random_crop_at_inference: bool = False,
     ):
         super().__init__()
         self.keys = list(features)
@@ -34,7 +35,11 @@ class ObservationEncoder(nn.Module):
                 height, width = crop_shape or feature.shape[1:]
                 self.cameras[self.camera_name(key)] = nn.Sequential(
                     OrderedDict(
-                        crop=RandomCrop(crop_shape) if crop_shape is not None else nn.Identity(),
+                        crop=(
+                            RandomCrop(crop_shape, random_crop_at_inference)
+                            if crop_shape is not None
+                            else nn.Identity()
+                        ),
                         encoder=ImageEncoder(height, width, num_kp, image_feature_dim),
                         activation=nn.ReLU(),
                     )
@@ -51,6 +56,7 @@ class ObservationEncoder(nn.Module):
             config.crop_shape,
             config.spatial_softmax_num_kp,
             config.image_feature_dim,
+            config.random_crop_at_inference,
         )
 
     @staticmethod

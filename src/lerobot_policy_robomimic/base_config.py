@@ -17,6 +17,8 @@ class RobomimicPolicyConfig(PreTrainedConfig):
             privileged object state that only robomimic's low-dim experiments use.
         crop_shape: (height, width) of the random crop taken from each camera during training,
             and of the center crop at inference; None disables cropping.
+        random_crop_at_inference: Whether cameras are also cropped at random positions outside
+            training, as in robomimic v0.1, whose checkpoints were evaluated that way.
         spatial_softmax_num_kp: Number of keypoints each camera's spatial softmax extracts.
         image_feature_dim: Size of the feature each camera is projected to.
         use_gmm: Whether the policy outputs a Gaussian mixture over actions instead of one action.
@@ -43,6 +45,7 @@ class RobomimicPolicyConfig(PreTrainedConfig):
     use_env_state: bool = False
 
     crop_shape: tuple[int, int] | None = (76, 76)
+    random_crop_at_inference: bool = False
     spatial_softmax_num_kp: int = 32
     image_feature_dim: int = 64
 
