@@ -22,6 +22,7 @@ DEFAULT_STATE_KEYS = ("robot0_eef_pos", "robot0_eef_quat", "robot0_gripper_qpos"
 ENV_STATE_KEY = "object"
 IMAGE_SUFFIX = "_image"
 MASKS_FILE = "meta/robomimic_masks.json"
+ENV_ARGS_FILE = "meta/robomimic_env_args.json"
 
 # Above this many bytes of raw pixels, images are stored as MP4 videos instead of lossless PNG images.
 VIDEO_THRESHOLD_BYTES = 2 * 1024**3
@@ -73,7 +74,11 @@ def convert(
     state_keys: Sequence[str] = DEFAULT_STATE_KEYS,
     video: str = "auto",
 ) -> LeRobotDataset:
-    """Writes every demo of `hdf5_path` as one episode, in numeric demo order."""
+    """Writes every demo of `hdf5_path` as one episode, in numeric demo order.
+
+    The robomimic masks and the robosuite settings the demos were recorded with are kept next
+    to LeRobot's metadata, in `MASKS_FILE` and `ENV_ARGS_FILE`.
+    """
     with h5py.File(hdf5_path, "r") as f:
         data = f["data"]
         env_args = json.loads(data.attrs["env_args"])
@@ -115,6 +120,7 @@ def convert(
         }
     masks_path = dataset.root / MASKS_FILE
     masks_path.write_text(json.dumps({"demo_keys": demo_keys, "masks": masks}, indent=2) + "\n")
+    (dataset.root / ENV_ARGS_FILE).write_text(json.dumps(env_args, indent=2) + "\n")
     return dataset
 
 

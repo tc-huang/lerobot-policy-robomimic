@@ -66,6 +66,32 @@ uv run python -m lerobot_policy_robomimic.convert_checkpoint \
     --output-dir outputs/checkpoints/lift_ph_image_bc_rnn
 ```
 
+## Datasets
+
+`lerobot_policy_robomimic/convert_dataset.py` 把含有 observation 的 robomimic hdf5 檔轉成
+LeRobotDataset，每個 demo 一個 episode。測試會用一個小型 hdf5 檔比對轉換後的數值、像素、
+episode 與 metadata（`tests/test_convert_dataset.py`）。來源標示方式見「設計」一節。
+
+| 決策                | 選擇                                                                                       | 來源                                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 本體感知            | `observation.state`：依序串接 `robot0_eef_pos`、`robot0_eef_quat`、`robot0_gripper_qpos`   | 原 repo `robomimic/scripts/generate_paper_configs.py:138-142`、`:67-70`（所有論文實驗都用這些 key）；LeRobot 的 policy 讀取 `observation.state` |
+| 物體狀態            | `observation.environment_state`，來自 `object`                                             | 原 repo `robomimic/scripts/generate_paper_configs.py:71`（僅 low-dim 實驗）；LeRobot 把這個 key 定為 `ENV` 類型（`utils/feature_utils.py:168`） |
+| 相機                | `observation.images.<camera>`，來自 `<camera>_image`                                       | 本專案；LeRobot 的 RoboCasa env 也沿用 robosuite 的相機名稱（`envs/robocasa.py:44`）                                                            |
+| 影像儲存            | 無損 PNG；原始像素超過 2 GiB 時改用 LeRobot 的 MP4 影片（`--video auto`）                  | 本專案：小資料集保留 robomimic 的精確像素，大資料集維持可處理的大小                                                                             |
+| Frame rate          | demo 的 `control_freq`，Lift 為 20 Hz                                                      | hdf5 的 `env_args`                                                                                                                              |
+| Episode 順序        | 依 demo 編號的數值順序，因此 `demo_2` 排在 `demo_10` 之前                                  | 本專案                                                                                                                                          |
+| Train 與 valid 切分 | `meta/robomimic_masks.json` 把每個 mask 對應到 episode index，供 `--dataset.episodes` 使用 | 原 repo `robomimic/scripts/generate_paper_configs.py:244-245`（論文以 `train` 訓練、以 `valid` 驗證）                                           |
+| 模擬器設定          | `meta/robomimic_env_args.json` 原樣保留 hdf5 的 `env_args`                                 | 原 repo `robomimic/scripts/train.py:89`、`:150`（robomimic 以它建立 rollout 用的 env）                                                          |
+| 數值                | float64 轉為 float32                                                                       | 本專案                                                                                                                                          |
+
+robomimic 沒有釋出 v1.5 的 image dataset；它是用 `robomimic/scripts/dataset_states_to_obs.py`
+從 raw 檔產生的，相機與尺寸依照 `robomimic/scripts/extract_obs_from_raw_datasets.sh:61`。用同樣
+方式產生 low-dim 檔，可以重現官方釋出的檔案，只有一個 float32 observation 有捨入差異。
+
+模擬器設定之所以重要，是因為 robosuite 1.5.1 自己的預設值和錄製 demo 時不同：它的 Panda
+控制器以機器人底座座標系、而非世界座標系解讀 action（`input_ref_frame`），而 demo 關閉了
+`lite_physics`。
+
 ## 設計
 
 本專案從零開始重建每個 robomimic policy，一次建構一個元件。以下每一節說明一個元件，

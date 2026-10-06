@@ -71,6 +71,37 @@ uv run python -m lerobot_policy_robomimic.convert_checkpoint \
     --output-dir outputs/checkpoints/lift_ph_image_bc_rnn
 ```
 
+## Datasets
+
+`lerobot_policy_robomimic/convert_dataset.py` turns a robomimic hdf5 file that
+contains observations into a LeRobotDataset with one episode per demo. Tests
+check the converted values, pixels, episodes, and metadata against a small
+hdf5 file (`tests/test_convert_dataset.py`). Sources are cited as described
+under Design.
+
+| Decision              | Choice                                                                                                          | Source                                                                                                                                                 |
+| --------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Proprioception        | `observation.state`: `robot0_eef_pos`, `robot0_eef_quat`, and `robot0_gripper_qpos`, concatenated in that order | Repo `robomimic/scripts/generate_paper_configs.py:138-142`, `:67-70` (the keys of every paper experiment); LeRobot policies read `observation.state`   |
+| Object state          | `observation.environment_state`, from `object`                                                                  | Repo `robomimic/scripts/generate_paper_configs.py:71` (low-dim experiments only); LeRobot gives this key the `ENV` type (`utils/feature_utils.py:168`) |
+| Cameras               | `observation.images.<camera>`, from `<camera>_image`                                                            | This port; LeRobot's RoboCasa env also keeps robosuite's camera names (`envs/robocasa.py:44`)                                                          |
+| Image storage         | Lossless PNG, or LeRobot's MP4 videos above 2 GiB of raw pixels (`--video auto`)                                | This port: small datasets keep robomimic's exact pixels; large ones stay manageable                                                                    |
+| Frame rate            | The `control_freq` of the demos, 20 Hz for Lift                                                                 | The hdf5's `env_args`                                                                                                                                  |
+| Episode order         | Numeric demo order, so `demo_2` comes before `demo_10`                                                          | This port                                                                                                                                              |
+| Train and valid split | `meta/robomimic_masks.json` maps each mask to episode indices, for `--dataset.episodes`                         | Repo `robomimic/scripts/generate_paper_configs.py:244-245` (the paper trains on `train` and validates on `valid`)                                      |
+| Simulator settings    | `meta/robomimic_env_args.json` keeps the hdf5's `env_args` as they are                                          | Repo `robomimic/scripts/train.py:89`, `:150` (robomimic builds its rollout env from them)                                                              |
+| Values                | float64 becomes float32                                                                                         | This port                                                                                                                                              |
+
+robomimic's v1.5 image datasets are not released; they are generated from the
+raw files with `robomimic/scripts/dataset_states_to_obs.py`, using the cameras
+and size of `robomimic/scripts/extract_obs_from_raw_datasets.sh:61`. Generating
+the low-dim file the same way reproduces the released one, up to rounding
+in one float32 observation.
+
+The simulator settings matter because robosuite 1.5.1's own defaults differ
+from those the demos were recorded with: its Panda controller reads actions
+in the robot base frame instead of the world frame (`input_ref_frame`), and
+the demos turn off `lite_physics`.
+
 ## Design
 
 Each robomimic policy is rebuilt here from scratch, one component at a time.

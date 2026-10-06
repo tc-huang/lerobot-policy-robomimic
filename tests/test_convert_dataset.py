@@ -7,6 +7,7 @@ from lerobot.datasets.lerobot_dataset import LeRobotDataset
 from lerobot.utils.constants import ACTION, OBS_ENV_STATE, OBS_IMAGES, OBS_STATE
 
 from lerobot_policy_robomimic.convert_dataset import (
+    ENV_ARGS_FILE,
     MASKS_FILE,
     VIDEO_THRESHOLD_BYTES,
     convert,
@@ -94,6 +95,8 @@ def test_convert_image_dataset(tmp_path):
 
     masks = json.loads((tmp_path / "out" / MASKS_FILE).read_text())
     assert masks == {"demo_keys": ["demo_0", "demo_1", "demo_10"], "masks": {"train": [0, 2], "valid": [1]}}
+    env_args = json.loads((tmp_path / "out" / ENV_ARGS_FILE).read_text())
+    assert env_args == {"env_name": "Lift", "env_kwargs": {"control_freq": 20, "robots": ["Panda"]}}
 
 
 def test_convert_low_dim_dataset(tmp_path):
