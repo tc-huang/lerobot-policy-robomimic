@@ -54,6 +54,18 @@ experiments (Repo `robomimic/scripts/generate_paper_configs.py:61-62`,
 `:131-132`, chosen by data type alone at `:739-746`). Its low-dim experiments
 also need `--policy.rnn_hidden_dim=400` (§8).
 
+To run a BC-RNN checkpoint from robomimic's model zoo (Repo
+`docs/model_zoo/robomimic_v0.1.md`), download it and convert it into a
+LeRobot policy directory (§12):
+
+```bash
+curl -L --create-dirs -o data/robomimic/model_zoo/lift_ph_image_epoch_500_succ_100.pth \
+    http://downloads.cs.stanford.edu/downloads/rt_benchmark/model_zoo/lift/bc_rnn/lift_ph_image_epoch_500_succ_100.pth
+uv run python -m lerobot_policy_robomimic.convert_checkpoint \
+    --checkpoint data/robomimic/model_zoo/lift_ph_image_epoch_500_succ_100.pth \
+    --output-dir outputs/checkpoints/lift_ph_image_bc_rnn
+```
+
 ## Design
 
 Each robomimic policy is rebuilt here from scratch, one component at a time.
@@ -366,3 +378,55 @@ A 20-step `lerobot-train` run on the `train` mask of the converted Lift image
 dataset trains the 35M-parameter policy, saves a checkpoint, and runs 12 steps
 of `select_action` across a state reset after loading it back with its
 processors.
+
+### 12. Model zoo checkpoints
+
+`lerobot_policy_robomimic/convert_checkpoint.py` turns a BC-RNN checkpoint of
+robomimic's model zoo into a `robomimic_bc_rnn` policy directory with its
+config, weights, and processors. The model zoo was trained with robomimic
+v0.1 (Repo `docs/model_zoo/robomimic_v0.1.md`), so the converter reads that
+version's format; robomimic v0.5 itself cannot load these image checkpoints,
+because it upgrades only the config (`robomimic/utils/file_utils.py:247`) and
+loads the weights by exact name (`robomimic/algo/algo.py:353`).
+
+The checkpoint is read with `torch.load(weights_only=True)`, so no pickled
+code runs. Its config is checked first, and settings this port does not
+implement, such as a GRU or an open-loop RNN, stop the conversion with an
+error.
+
+| Part of robomimic v0.1                                              | Same as this port?                                           | Source                                                                                             |
+| ------------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| Camera encoder: ResNet-18, spatial softmax, linear projection, ReLU | Yes; the code differs only in default arguments              | Repo `v0.1.0:robomimic/models/base_nets.py:840-873`, `v0.1.0:robomimic/models/obs_nets.py:271-276` |
+| Image orientation                                                   | Yes, flipped upright by the env wrapper                      | Repo `v0.1.0:robomimic/envs/env_robosuite.py:185`                                                  |
+| Feature order                                                       | Yes, sorted keys                                             | The checkpoint's `shape_metadata["all_shapes"]`                                                    |
+| LSTM state reset every `rnn_horizon` steps                          | Yes                                                          | Repo `v0.1.0:robomimic/algo/bc.py:521-535`                                                         |
+| Crop at inference                                                   | No, random; converted configs set `random_crop_at_inference` | §3                                                                                                 |
+| Weight names                                                        | No; renamed below                                            | The checkpoint's keys                                                                              |
+
+| robomimic v0.1 weight                                                                                   | This port                                                         |
+| ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `policy.nets.encoder.nets.obs.obs_nets.<camera>_image.vis_core.nets.*`                                  | `encoder.cameras.<camera>.encoder.backbone.*`                     |
+| `…<camera>_image.pool_net.nets.*`                                                                       | `encoder.cameras.<camera>.encoder.pool.keypoints.*`               |
+| `…<camera>_image.nets.3.*`                                                                              | `encoder.cameras.<camera>.encoder.projection.*`                   |
+| `policy.nets.rnn.nets.*`                                                                                | `lstm.*`, with the input columns of `weight_ih_l0` reordered (§4) |
+| `policy.nets.decoder.nets.{mean,scale,logits}.*`                                                        | `action_head.{mean,scale,logits}.*`                               |
+| `…<camera>_image.nets.{0,1}.*`, `…pool_net.{temperature,pos_x,pos_y}`, `policy.nets.rnn.per_step_net.*` | Dropped: duplicates of the weights above, or fixed values (§3)    |
+
+The weights then load with `strict=True`, so every weight of the policy must
+come from the checkpoint.
+
+Tests write a robomimic v0.5 BC-RNN network in the v0.1 format, convert it,
+and compare 12 steps of actions with robomimic's own `get_action`; they also
+convert the Lift checkpoint when it is downloaded
+(`tests/test_convert_checkpoint.py`).
+
+On the 1026 frames of the 20 `valid` demos of the converted Lift image
+dataset, the converted Lift PH image checkpoint
+(`lift_ph_image_epoch_500_succ_100.pth`, SHA-256 `37b94a11…bc47fb`) predicts the
+demonstrated actions with a mean absolute error of 0.071 per dimension, or
+0.073 with center crops. Two controls show that this error is meaningful:
+always predicting zeros gives 0.263, and skipping the column reorder of
+`weight_ih_l0` gives 0.305. The dataset was regenerated with robosuite 1.5.1,
+while the checkpoint was trained on data from robosuite's `offline_study`
+branch, so part of the error may come from that difference. Success rates in
+simulation are not measured yet.

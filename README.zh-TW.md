@@ -51,6 +51,17 @@ robomimic 在 image 與 low-dim 實驗中對所有演算法都使用相同設定
 `robomimic/scripts/generate_paper_configs.py:61-62`、`:131-132`；`:739-746` 只依資料
 類型選擇設定）。它的 low-dim 實驗還需要 `--policy.rnn_hidden_dim=400`（§8）。
 
+若要使用 robomimic model zoo 的 BC-RNN checkpoint（原 repo `docs/model_zoo/robomimic_v0.1.md`），
+先下載，再轉換成 LeRobot 的 policy 目錄（§12）：
+
+```bash
+curl -L --create-dirs -o data/robomimic/model_zoo/lift_ph_image_epoch_500_succ_100.pth \
+    http://downloads.cs.stanford.edu/downloads/rt_benchmark/model_zoo/lift/bc_rnn/lift_ph_image_epoch_500_succ_100.pth
+uv run python -m lerobot_policy_robomimic.convert_checkpoint \
+    --checkpoint data/robomimic/model_zoo/lift_ph_image_epoch_500_succ_100.pth \
+    --output-dir outputs/checkpoints/lift_ph_image_bc_rnn
+```
+
 ## 設計
 
 本專案從零開始重建每個 robomimic policy，一次建構一個元件。以下每一節說明一個元件，
@@ -331,3 +342,46 @@ encoder 與 action head。
 在轉換好的 Lift image dataset 上，用 `train` mask 跑 20 步的 `lerobot-train`，可以訓練這個
 35M 參數的 policy、存下 checkpoint，並連同 processor 讀回後執行 12 步 `select_action`，
 期間跨過一次狀態重設。
+
+### 12. Model zoo checkpoint
+
+`lerobot_policy_robomimic/convert_checkpoint.py` 把 robomimic model zoo 的 BC-RNN
+checkpoint 轉成 `robomimic_bc_rnn` 的 policy 目錄，包含 config、權重與 processor。model zoo
+是用 robomimic v0.1 訓練的（原 repo `docs/model_zoo/robomimic_v0.1.md`），因此轉換程式讀取
+該版本的格式；robomimic v0.5 本身無法載入這些 image checkpoint，因為它只升級 config
+（`robomimic/utils/file_utils.py:247`），載入權重時則要求名稱完全相同
+（`robomimic/algo/algo.py:353`）。
+
+checkpoint 以 `torch.load(weights_only=True)` 讀取，不會執行 pickle 中的程式碼。轉換前會先
+檢查 config；遇到本專案沒有實作的設定，例如 GRU 或 open-loop RNN，會報錯並停止轉換。
+
+| robomimic v0.1 的部分                                    | 和本專案相同嗎？                                                    | 來源                                                                                                  |
+| -------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| 相機 encoder：ResNet-18、spatial softmax、線性投影、ReLU | 相同；程式碼只差在預設參數                                          | 原 repo `v0.1.0:robomimic/models/base_nets.py:840-873`、`v0.1.0:robomimic/models/obs_nets.py:271-276` |
+| 影像方向                                                 | 相同，由 env wrapper 翻正                                           | 原 repo `v0.1.0:robomimic/envs/env_robosuite.py:185`                                                  |
+| 特徵順序                                                 | 相同，依排序後的 key                                                | checkpoint 的 `shape_metadata["all_shapes"]`                                                          |
+| 每 `rnn_horizon` 步重設 LSTM 狀態                        | 相同                                                                | 原 repo `v0.1.0:robomimic/algo/bc.py:521-535`                                                         |
+| 推論時的裁切                                             | 不同，為隨機裁切；轉換後的 config 會設定 `random_crop_at_inference` | §3                                                                                                    |
+| 權重名稱                                                 | 不同；依下表改名                                                    | checkpoint 的 key                                                                                     |
+
+| robomimic v0.1 的權重                                                                                   | 本專案                                                   |
+| ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `policy.nets.encoder.nets.obs.obs_nets.<camera>_image.vis_core.nets.*`                                  | `encoder.cameras.<camera>.encoder.backbone.*`            |
+| `…<camera>_image.pool_net.nets.*`                                                                       | `encoder.cameras.<camera>.encoder.pool.keypoints.*`      |
+| `…<camera>_image.nets.3.*`                                                                              | `encoder.cameras.<camera>.encoder.projection.*`          |
+| `policy.nets.rnn.nets.*`                                                                                | `lstm.*`，其中 `weight_ih_l0` 的輸入欄位會重新排列（§4） |
+| `policy.nets.decoder.nets.{mean,scale,logits}.*`                                                        | `action_head.{mean,scale,logits}.*`                      |
+| `…<camera>_image.nets.{0,1}.*`、`…pool_net.{temperature,pos_x,pos_y}`、`policy.nets.rnn.per_step_net.*` | 捨棄：它們是上述權重的重複，或是固定值（§3）             |
+
+之後以 `strict=True` 載入權重，因此 policy 的每個權重都必須來自 checkpoint。
+
+測試會把 robomimic v0.5 的 BC-RNN 網路寫成 v0.1 格式、轉換後，和 robomimic 自己的
+`get_action` 比對 12 步的 action；若已下載 Lift checkpoint，也會轉換它
+（`tests/test_convert_checkpoint.py`）。
+
+在轉換好的 Lift image dataset 中，20 個 `valid` demo 共 1026 個 frame 上，轉換後的 Lift PH
+image checkpoint（`lift_ph_image_epoch_500_succ_100.pth`，SHA-256 `37b94a11…bc47fb`）
+預測示範 action 的平均絕對誤差為每維 0.071，改用中央裁切時為 0.073。兩個對照組說明這個誤差
+是有意義的：一律預測 0 時為 0.263，略過 `weight_ih_l0` 的欄位重新排列時為 0.305。這份
+dataset 是用 robosuite 1.5.1 重新產生的，而 checkpoint 是用 robosuite `offline_study`
+branch 的資料訓練，因此部分誤差可能來自這個差異。模擬環境中的成功率尚未量測。
