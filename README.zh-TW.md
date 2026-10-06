@@ -709,3 +709,23 @@ cache 中有 CLIP 模型時，把它的 embedding 和 robomimic 的 `get_lang_em
 
 語言條件化需要 `transformers`，以 `language` extra 提供，版本範圍沿用 LeRobot 自己的
 `lerobot[transformers-dep]`。CLIP 模型約 1.7 GB，第一次使用時會下載到 Hugging Face cache。
+
+### 22. 串接
+
+設定 `language_conditioning=concat` 時，policy 把 embedding 當成多一個向量 observation：
+`observation_features` 把它列在最後，§4 的 observation encoder 原樣串接它，和 robomimic 把
+`lang_emb` 放在 low-dim observation 中的做法相同（原 repo `docs/tutorials/language_conditioning.md`
+的「Feature input to action head」；`robomimic/models/obs_nets.py:282-284`、`:303-307`）。
+`tests/test_language_conditioning.py` 會把 encoder 與 robomimic 的比對（robomimic 會把
+`lang_emb` 和其他 key 一起排序，因此依 §4 的方式重新排列特徵），也會在相同權重下比對 BC-RNN
+的 loss。
+
+| 部分     | 行為                                                                 | 來源                                                                                           |
+| -------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 特徵順序 | 放在最後，接在 dataset 的 feature 之後                               | 本專案；robomimic 則把它和其他 key 一起排序（原 repo `robomimic/utils/file_utils.py:162-167`） |
+| 序列     | 每個樣本一個 embedding，在 BC-RNN 與 BC-Transformer 的序列中逐步重複 | 原 repo `robomimic/utils/dataset.py:530-532`（在序列中重複）                                   |
+| 其他輸入 | 除了 task 以外至少要有一個 observation                               | 本專案                                                                                         |
+
+即使回傳的是一段 frame 序列，LeRobot 的 dataset 對每個樣本也只給一個 task 字串，因此
+embedding 沒有時間維度，由 encoder 重複它。同一個示範中的 task 不會改變，所以結果和
+robomimic 重複的 embedding 相同。

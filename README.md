@@ -806,3 +806,26 @@ computing embeddings itself.
 Language conditioning needs `transformers`, available as the `language`
 extra with LeRobot's own bounds (`lerobot[transformers-dep]`). The CLIP model
 is about 1.7 GB and is downloaded to the Hugging Face cache on first use.
+
+### 22. Concatenation
+
+With `language_conditioning=concat`, the policy reads the embedding as one
+more vector observation: `observation_features` lists it last, and the
+observation encoder (§4) concatenates it unchanged, as robomimic does with a
+`lang_emb` key among its low-dim observations (Repo
+`docs/tutorials/language_conditioning.md`, "Feature input to action head";
+`robomimic/models/obs_nets.py:282-284`, `:303-307`). `tests/test_language_conditioning.py`
+compares the encoder with robomimic's, reordering features as in §4 since
+robomimic sorts `lang_emb` among its keys, and BC-RNN's loss with robomimic's
+on the same weights.
+
+| Part          | Behavior                                                                                 | Source                                                                                            |
+| ------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Feature order | Last, after the dataset's features                                                       | This port; robomimic sorts it among the other keys (Repo `robomimic/utils/file_utils.py:162-167`) |
+| Sequences     | One embedding per sample, repeated over the steps of BC-RNN and BC-Transformer sequences | Repo `robomimic/utils/dataset.py:530-532` (repeated over the sequence)                            |
+| Other inputs  | At least one observation besides the task                                                | This port                                                                                         |
+
+LeRobot's dataset gives one task string per sample even when it returns a
+sequence of frames, so the embedding arrives without the time dimension and
+the encoder repeats it. Within a demo the task does not change, so this
+equals robomimic's repeated embedding.

@@ -26,7 +26,10 @@ from robomimic.scripts.generate_paper_configs import (  # noqa: E402
 )
 from robomimic.utils.python_utils import extract_class_init_kwargs_from_dict  # noqa: E402
 
+from lerobot_policy_robomimic.language import OBS_LANGUAGE_EMBEDDING  # noqa: E402
+
 STATE_KEYS = {"robot0_eef_pos": 3, "robot0_eef_quat": 4, "robot0_gripper_qpos": 2}
+LANG_EMB = "lang_emb"
 CAMERAS = ("agentview", "robot0_eye_in_hand")
 IMAGE_SHAPE = (3, 84, 84)
 
@@ -57,16 +60,47 @@ def random_image_observations(*leading: int) -> tuple[dict, dict]:
     return obs, batch
 
 
-def lerobot_feature_order(features: torch.Tensor) -> torch.Tensor:
+def lerobot_feature_order(features: torch.Tensor, language_dim: int = 0) -> torch.Tensor:
     """Reorders the last dimension of an image experiment from robomimic's sorted keys to LeRobot's order.
 
-    It applies to encoder outputs and to the input columns of the first MLP layer alike.
+    It applies to encoder outputs and to the input columns of the first MLP layer alike. With
+    `language_dim`, the features include robomimic's `lang_emb`, which comes last in LeRobot's order.
     """
     feature_dim = rgb_encoder_kwargs()["core_kwargs"]["feature_dimension"]
-    sizes = {key: STATE_KEYS.get(key, feature_dim) for key in sorted(image_experiment_obs_shapes())}
+    sizes = {key: STATE_KEYS.get(key, feature_dim) for key in image_experiment_obs_shapes()}
+    if language_dim:
+        sizes[LANG_EMB] = language_dim
+    sizes = dict(sorted(sizes.items()))
     by_key = dict(zip(sizes, features.split(list(sizes.values()), dim=-1), strict=True))
     ordered = [by_key[key] for key in STATE_KEYS] + [by_key[f"{camera}_image"] for camera in CAMERAS]
+    if language_dim:
+        ordered.append(by_key[LANG_EMB])
     return torch.cat(ordered, dim=-1)
+
+
+def random_language(batch_size: int, *steps: int, dim: int = 768) -> tuple[dict, dict]:
+    """Returns one random task embedding per sample, keyed for robomimic and for LeRobot.
+
+    robomimic's copy is repeated over `steps`, as its dataset repeats a demo's embedding.
+    """
+    embedding = torch.randn(batch_size, dim)
+    repeated = embedding.reshape(batch_size, *([1] * len(steps)), dim).expand(batch_size, *steps, dim)
+    return {LANG_EMB: repeated}, {OBS_LANGUAGE_EMBEDDING: embedding}
+
+
+def with_language(config, film: bool = False):
+    """Adds robomimic's `lang_emb` observation to `config`, and with `film`, FiLM to its cameras.
+
+    FiLM swaps the camera core and backbone as `docs/tutorials/language_conditioning.md` shows,
+    keeping the experiment's crop and spatial softmax.
+    """
+    with config.values_unlocked():
+        config.observation.modalities.obs.low_dim = [*config.observation.modalities.obs.low_dim, LANG_EMB]
+        if film:
+            rgb = config.observation.encoder.rgb
+            rgb.core_class = "VisualCoreLanguageConditioned"
+            rgb.core_kwargs.backbone_class = "ResNet18ConvFiLM"
+    return config
 
 
 def image_experiment_config():
@@ -259,11 +293,12 @@ def make_algo(config, obs_shapes: dict[str, list[int]], action_dim: int) -> BC:
     )
 
 
-def load_policy(policy, reference) -> None:
+def load_policy(policy, reference, language_dim: int = 0) -> None:
     """Copies the weights of BC's, BC-RNN's, or BC-Transformer's actor network into our policy.
 
     The input columns of the first layer after the encoder, the LSTM's, the transformer's
-    input projection, or the MLP's, are reordered from robomimic's sorted keys.
+    input projection, or the MLP's, are reordered from robomimic's sorted keys, which include
+    `lang_emb` when `language_dim` is set.
     """
     for camera in CAMERAS:
         load_visual_core(
@@ -274,12 +309,12 @@ def load_policy(policy, reference) -> None:
     if "transformer" in reference.nets:
         load_transformer(policy.transformer, reference)
         policy.transformer.input_projection.weight.data.copy_(
-            lerobot_feature_order(reference.nets["embed_encoder"].weight)
+            lerobot_feature_order(reference.nets["embed_encoder"].weight, language_dim)
         )
         reordered = True
     if "rnn" in reference.nets:
         lstm = dict(reference.nets["rnn"].nets.state_dict())
-        lstm["weight_ih_l0"] = lerobot_feature_order(lstm["weight_ih_l0"])
+        lstm["weight_ih_l0"] = lerobot_feature_order(lstm["weight_ih_l0"], language_dim)
         policy.lstm.load_state_dict(lstm)
         reordered = True
     reference_mlp = reference.nets["mlp"]._model if "mlp" in reference.nets else []
@@ -287,7 +322,7 @@ def load_policy(policy, reference) -> None:
     ours_mlp = policy.mlp.layers if hasattr(policy, "mlp") else []
     ours_linears = [layer for layer in ours_mlp if isinstance(layer, torch.nn.Linear)]
     for ours, theirs in zip(ours_linears, reference_linears, strict=True):
-        weight = theirs.weight if reordered else lerobot_feature_order(theirs.weight)
+        weight = theirs.weight if reordered else lerobot_feature_order(theirs.weight, language_dim)
         ours.load_state_dict({"weight": weight, "bias": theirs.bias})
         reordered = True
     for name, layer in reference.nets["decoder"].nets.items():

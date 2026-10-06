@@ -6,6 +6,8 @@ from lerobot.configs import FeatureType, NormalizationMode, PolicyFeature, PreTr
 from lerobot.optim import AdamConfig
 from lerobot.optim.schedulers import LRSchedulerConfig
 
+from .language import OBS_LANGUAGE_EMBEDDING
+
 LANGUAGE_CONDITIONINGS = (None, "concat", "film")
 
 
@@ -71,18 +73,28 @@ class RobomimicPolicyConfig(PreTrainedConfig):
 
     @property
     def observation_features(self) -> dict[str, PolicyFeature]:
-        """Input features the policy reads, in the order they are given."""
-        return {
+        """Input features the policy reads, in the order they are given.
+
+        With language conditioning, the task embedding that the preprocessor adds comes last.
+        """
+        features = {
             key: feature
             for key, feature in self.input_features.items()
             if feature.type is not FeatureType.ENV or self.use_env_state
         }
+        if self.language_conditioning is not None:
+            features[OBS_LANGUAGE_EMBEDDING] = PolicyFeature(
+                type=FeatureType.LANGUAGE, shape=(self.language_embedding_dim,)
+            )
+        return features
 
     def validate_features(self) -> None:
         if self.action_feature is None:
             raise ValueError(f"{self.type} requires an 'action' output feature.")
-        if not self.observation_features:
-            raise ValueError(f"{self.type} requires at least one input feature it reads.")
+        if not any(
+            feature.type is not FeatureType.LANGUAGE for feature in self.observation_features.values()
+        ):
+            raise ValueError(f"{self.type} requires at least one input feature it reads besides the task.")
         if self.use_env_state and self.env_state_feature is None:
             raise ValueError("use_env_state is set, but there is no 'observation.environment_state' input.")
         for key, feature in self.image_features.items():

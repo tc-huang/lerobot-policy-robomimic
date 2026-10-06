@@ -15,7 +15,8 @@ class ObservationEncoder(nn.Module):
     """Concatenates vector observations as they are and camera features from `ImageEncoder`.
 
     Features follow the order of `features`. Each camera is cropped, encoded, and, with
-    `camera_activation`, passed through a ReLU.
+    `camera_activation`, passed through a ReLU. A language feature holds one embedding per
+    sample, which is repeated over any further leading dimensions such as time.
     """
 
     def __init__(
@@ -29,6 +30,9 @@ class ObservationEncoder(nn.Module):
     ):
         super().__init__()
         self.keys = list(features)
+        self.language_key = next(
+            (key for key, feature in features.items() if feature.type is FeatureType.LANGUAGE), None
+        )
         self.cameras = nn.ModuleDict()
         self.output_dim = 0
         for key, feature in features.items():
@@ -73,6 +77,7 @@ class ObservationEncoder(nn.Module):
 
         Camera frames are encoded one by one, so each frame gets its own random crop.
         """
+        leading = self.leading_shape(batch)
         features = []
         for key in self.keys:
             camera = self.camera_name(key)
@@ -80,6 +85,23 @@ class ObservationEncoder(nn.Module):
                 frames = batch[key]
                 encoded = self.cameras[camera](frames.flatten(end_dim=-4))
                 features.append(encoded.unflatten(0, frames.shape[:-3]))
+            elif key == self.language_key:
+                features.append(self.repeat_language(batch[key], leading))
             else:
                 features.append(batch[key])
         return torch.cat(features, dim=-1)
+
+    def leading_shape(self, batch: dict[str, Tensor]) -> torch.Size:
+        """Returns the leading dimensions, such as (B,) or (B, T), of the observations."""
+        key = next(key for key in self.keys if key != self.language_key)
+        value = batch[key]
+        return value.shape[:-3] if self.camera_name(key) in self.cameras else value.shape[:-1]
+
+    @staticmethod
+    def repeat_language(embedding: Tensor, leading: torch.Size) -> Tensor:
+        """Returns a language embedding repeated to (*leading, embedding_dim).
+
+        The embedding has the batch dimension and possibly some of the further leading ones.
+        """
+        missing = len(leading) - (embedding.dim() - 1)
+        return embedding.reshape(*embedding.shape[:-1], *([1] * missing), -1).expand(*leading, -1)
