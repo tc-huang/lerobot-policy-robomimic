@@ -58,6 +58,23 @@ template 是在 low-dim 資料上以 `--batch_size=100 --steps=200000` 訓練（
 若要訓練 BC-VAE，使用 `--policy.type=robomimic_bc_vae`。論文沒有 BC-VAE 的實驗；robomimic
 的論文 config 只依資料類型決定 batch size 與訓練長度，因此沿用上面 BC 的數值（§17）。
 
+若要讓這些 policy 依 task 的 CLIP embedding 條件化，安裝 `language` extra，並加上
+`--policy.language_conditioning=film` 或 `concat`（§21-23）。task 就是轉換時給的 `--task`
+字串；在 converter 開始把它存進 env args 之前轉換的 dataset，需要在
+`meta/robomimic_env_args.json` 加上 `"lang"`，`lerobot-eval` 才拿得到它。
+
+```bash
+uv sync --extra training --extra language
+uv run lerobot-train \
+    --policy.type=robomimic_bc_rnn \
+    --policy.language_conditioning=film \
+    --dataset.repo_id=<user>/robomimic_lift_ph_image \
+    --dataset.episodes="$EPISODES" \
+    --batch_size=16 \
+    --steps=300000 \
+    --policy.push_to_hub=false
+```
+
 若要使用 robomimic model zoo 的 BC-RNN checkpoint（原 repo `docs/model_zoo/robomimic_v0.1.md`），
 先下載，再轉換成 LeRobot 的 policy 目錄（§12）：
 
@@ -756,3 +773,12 @@ encoder。
 
 `CameraEncoder` 取代了原本每支相機使用的 `nn.Sequential`，因為後者無法把第二個輸入傳給
 encoder；它的參數名稱不變，因此先前的 checkpoint 仍可載入。
+
+### 24. 執行紀錄
+
+Hugging Face cache 中有 `openai/clip-vit-large-patch14` 時，它對兩個 task 的 embedding 和
+robomimic 的 `get_lang_emb` 相同（`tests/test_language.py`）。在轉換後的 Lift image dataset 的
+`train` mask 上，以 `language_conditioning=film` 執行 20 步 BC-RNN 的 `lerobot-train`，會訓練這個
+4100 萬參數的 policy，並儲存包含 CLIP step 的 preprocessor。接著 `lerobot-eval` 以 `robomimic`
+env 載入它，env 的 task 描述是 dataset 的 `lift the cube`，並執行兩個 30 步的 episode。這裡不
+報告成功率：robomimic 沒有公布語言條件化的成功率，而論文的每個任務也只有一句指令。

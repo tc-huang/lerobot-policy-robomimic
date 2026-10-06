@@ -63,6 +63,24 @@ For BC-VAE, use `--policy.type=robomimic_bc_vae`. The paper has no BC-VAE
 experiment; robomimic's paper configs pick the batch size and length by data
 type alone, so the values above for BC apply (§17).
 
+To condition any of these policies on the task's CLIP embedding, install the
+`language` extra and add `--policy.language_conditioning=film`, or `concat`
+(§21-23). The task is the `--task` string given to the converter; datasets
+converted before the converter kept it in the env args need a `"lang"` entry
+added to `meta/robomimic_env_args.json` for `lerobot-eval`.
+
+```bash
+uv sync --extra training --extra language
+uv run lerobot-train \
+    --policy.type=robomimic_bc_rnn \
+    --policy.language_conditioning=film \
+    --dataset.repo_id=<user>/robomimic_lift_ph_image \
+    --dataset.episodes="$EPISODES" \
+    --batch_size=16 \
+    --steps=300000 \
+    --policy.push_to_hub=false
+```
+
 To run a BC-RNN checkpoint from robomimic's model zoo (Repo
 `docs/model_zoo/robomimic_v0.1.md`), download it and convert it into a
 LeRobot policy directory (§12):
@@ -861,3 +879,15 @@ way.
 `CameraEncoder` replaces the `nn.Sequential` each camera used before, which
 cannot pass a second input to its encoder; its parameters keep the same
 names, so earlier checkpoints still load.
+
+### 24. Runs
+
+With `openai/clip-vit-large-patch14` in the Hugging Face cache, its embedding
+of two tasks equals robomimic's `get_lang_emb` (`tests/test_language.py`).
+A 20-step `lerobot-train` run of BC-RNN with `language_conditioning=film` on
+the `train` mask of the converted Lift image dataset trains the 41M-parameter
+policy and saves a preprocessor that includes the CLIP step. `lerobot-eval`
+then loads it with the `robomimic` env, whose task description is the
+dataset's `lift the cube`, and runs two 30-step episodes. No success rate is
+reported here: robomimic publishes none for language conditioning, and the
+paper's tasks each have a single instruction.
