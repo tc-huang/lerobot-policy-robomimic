@@ -16,8 +16,10 @@ from robomimic.config import config_factory  # noqa: E402
 from robomimic.models.base_nets import SpatialSoftmax  # noqa: E402
 from robomimic.models.obs_core import CropRandomizer, VisualCore  # noqa: E402
 from robomimic.models.obs_nets import ObservationEncoder, obs_encoder_factory  # noqa: E402
-from robomimic.models.policy_nets import ActorNetwork  # noqa: E402
-from robomimic.scripts.generate_paper_configs import modify_config_for_default_image_exp  # noqa: E402
+from robomimic.scripts.generate_paper_configs import (  # noqa: E402
+    modify_bc_config_for_dataset,
+    modify_config_for_default_image_exp,
+)
 from robomimic.utils.python_utils import extract_class_init_kwargs_from_dict  # noqa: E402
 
 STATE_KEYS = {"robot0_eef_pos": 3, "robot0_eef_quat": 4, "robot0_gripper_qpos": 2}
@@ -102,24 +104,23 @@ def observation_encoder(obs_shapes: dict[str, list[int]]) -> ObservationEncoder:
     )
 
 
-def actor_network(obs_shapes: dict[str, list[int]], action_dim: int) -> ActorNetwork:
-    """Returns BC's actor network of the image experiments, with keys in sorted order."""
-    config = image_experiment_config()
-    obs_utils.initialize_obs_utils_with_config(config)
-    return ActorNetwork(
-        obs_shapes=OrderedDict(sorted(obs_shapes.items())),
-        ac_dim=action_dim,
-        mlp_layer_dims=config.algo.actor_layer_dims,
-        encoder_kwargs=obs_utils.obs_encoder_kwargs_from_config(config.observation.encoder),
-    )
+def bc_config(gmm: bool = True, **loss_weights: float):
+    """Returns robomimic's config for BC in the image experiments on proficient-human Lift data.
 
-
-def bc_algo(obs_shapes: dict[str, list[int]], action_dim: int, **loss_weights: float) -> BC:
-    """Returns robomimic's BC algorithm of the image experiments, with keys in sorted order."""
-    config = image_experiment_config()
+    Those experiments use a GMM head (`robomimic/scripts/generate_paper_configs.py:368`);
+    `gmm=False` turns it off, which gives robomimic's plain `BC`.
+    """
+    config = modify_bc_config_for_dataset(image_experiment_config(), "lift", "ph", "image")
     with config.algo.values_unlocked():
+        config.algo.gmm.enabled = gmm
         for name, weight in loss_weights.items():
             config.algo.loss[name] = weight
+    return config
+
+
+def bc_algo(obs_shapes: dict[str, list[int]], action_dim: int, gmm: bool, **loss_weights: float) -> BC:
+    """Returns robomimic's BC algorithm built from `bc_config`, with keys in sorted order."""
+    config = bc_config(gmm, **loss_weights)
     obs_utils.initialize_obs_utils_with_config(config)
     return algo_factory(
         algo_name="bc",
@@ -130,19 +131,27 @@ def bc_algo(obs_shapes: dict[str, list[int]], action_dim: int, **loss_weights: f
     )
 
 
-def load_actor_network(actor, reference: ActorNetwork) -> None:
-    """Copies robomimic's `ActorNetwork` weights into an `MLPActor`, reordering the first layer's inputs."""
+def load_policy(policy, reference) -> None:
+    """Copies the weights of BC's actor network into a `RobomimicBCPolicy`.
+
+    The input columns of the first MLP layer are reordered from robomimic's sorted keys.
+    """
     for camera in CAMERAS:
         load_visual_core(
-            actor.encoder.cameras[camera].encoder,
+            policy.encoder.cameras[camera].encoder,
             reference.nets["encoder"].nets["obs"].obs_nets[f"{camera}_image"],
         )
     reference_mlp = [layer for layer in reference.nets["mlp"]._model if isinstance(layer, torch.nn.Linear)]
-    ours_mlp = [layer for layer in actor.mlp if isinstance(layer, torch.nn.Linear)]
+    ours_mlp = [layer for layer in policy.mlp.layers if isinstance(layer, torch.nn.Linear)]
     for index, (ours, theirs) in enumerate(zip(ours_mlp, reference_mlp, strict=True)):
         weight = lerobot_feature_order(theirs.weight) if index == 0 else theirs.weight
         ours.load_state_dict({"weight": weight, "bias": theirs.bias})
-    actor.action_head.load_state_dict(reference.nets["decoder"].nets["action"].state_dict())
+    decoder = reference.nets["decoder"].nets
+    if "action" in decoder:
+        policy.action_head.linear.load_state_dict(decoder["action"].state_dict())
+    else:
+        for name in ("mean", "scale", "logits"):
+            getattr(policy.action_head, name).load_state_dict(decoder[name].state_dict())
 
 
 def load_visual_core(image_encoder, reference: VisualCore) -> None:

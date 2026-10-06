@@ -9,51 +9,80 @@ from lerobot_policy_robomimic import RobomimicBCConfig, RobomimicBCPolicy
 LOSS_WEIGHTS = {"l2_weight": 1.0, "l1_weight": 0.5, "cos_weight": 0.3}
 
 
-def make_policy(**kwargs) -> RobomimicBCPolicy:
+def make_policy(features=None, **kwargs) -> RobomimicBCPolicy:
     config = RobomimicBCConfig(
         device="cpu",
-        input_features=robomimic_reference.image_experiment_features(),
+        input_features=features or robomimic_reference.image_experiment_features(),
         output_features={ACTION: PolicyFeature(type=FeatureType.ACTION, shape=(7,))},
         **kwargs,
     )
     return RobomimicBCPolicy(config)
 
 
-def test_matches_robomimic_bc():
+def matching_pair(gmm: bool, **loss_weights):
     torch.manual_seed(0)
     reference = robomimic_reference.bc_algo(
-        robomimic_reference.image_experiment_obs_shapes(), action_dim=7, **LOSS_WEIGHTS
+        robomimic_reference.image_experiment_obs_shapes(), action_dim=7, gmm=gmm, **loss_weights
     )
-    reference.set_eval()
-    policy = make_policy(**LOSS_WEIGHTS).eval()
-    robomimic_reference.load_actor_network(policy.actor, reference.nets["policy"])
-    obs, batch = robomimic_reference.random_image_observations(4)
-    actions = torch.rand(4, 7) * 2 - 1
-    reference_batch = {"obs": obs, "goal_obs": None, "actions": actions}
+    policy = make_policy(use_gmm=gmm, **loss_weights)
+    robomimic_reference.load_policy(policy, reference.nets["policy"])
+    return policy, reference
 
-    loss, logs = policy.forward(batch | {ACTION: actions})
-    reference_losses = reference._compute_losses(
-        reference._forward_training(reference_batch), reference_batch
-    )
+
+def losses(policy, reference, actions):
+    obs, batch = robomimic_reference.random_image_observations(len(actions))
+    reference_batch = {"obs": obs, "goal_obs": None, "actions": actions}
+    ours = policy.forward(batch | {ACTION: actions})
+    theirs = reference._compute_losses(reference._forward_training(reference_batch), reference_batch)
+    return ours, theirs
+
+
+def test_deterministic_head_matches_robomimic_bc():
+    policy, reference = matching_pair(gmm=False, **LOSS_WEIGHTS)
+    policy.eval()
+    reference.set_eval()
+
+    (loss, logs), reference_losses = losses(policy, reference, torch.rand(4, 7) * 2 - 1)
 
     torch.testing.assert_close(loss, reference_losses["action_loss"])
     for name in ("l2_loss", "l1_loss", "cos_loss"):
         assert logs[name] == pytest.approx(reference_losses[name].item(), rel=1e-5)
+    obs, batch = robomimic_reference.random_image_observations(4)
     torch.testing.assert_close(policy.select_action(batch), reference.get_action(obs))
     torch.testing.assert_close(policy.predict_action_chunk(batch), reference.get_action(obs).unsqueeze(1))
 
 
+def test_gmm_loss_matches_robomimic_bc_gmm():
+    policy, reference = matching_pair(gmm=True)
+    policy.eval()
+    policy.action_head.train()
+    reference.set_eval()
+    reference.nets["policy"].training = True
+
+    (loss, logs), reference_losses = losses(policy, reference, torch.rand(4, 7) * 2 - 1)
+
+    torch.testing.assert_close(loss, reference_losses["action_loss"])
+    assert logs["log_probs"] == pytest.approx(reference_losses["log_probs"].item(), rel=1e-5)
+
+
+def test_gmm_actions_match_robomimic_bc_gmm():
+    policy, reference = matching_pair(gmm=True)
+    policy.eval()
+    reference.set_eval()
+    obs, batch = robomimic_reference.random_image_observations(4)
+
+    torch.manual_seed(1)
+    ours = policy.select_action(batch)
+    torch.manual_seed(1)
+    theirs = reference.get_action(obs)
+
+    torch.testing.assert_close(ours, theirs)
+
+
 def test_image_policy_ignores_env_state():
-    torch.manual_seed(0)
     features = robomimic_reference.image_experiment_features()
     features[OBS_ENV_STATE] = PolicyFeature(type=FeatureType.ENV, shape=(10,))
-    policy = RobomimicBCPolicy(
-        RobomimicBCConfig(
-            device="cpu",
-            input_features=features,
-            output_features={ACTION: PolicyFeature(type=FeatureType.ACTION, shape=(7,))},
-        )
-    ).eval()
+    policy = make_policy(features, use_gmm=False).eval()
     _, batch = robomimic_reference.random_image_observations(2)
 
     first = policy.select_action(batch | {OBS_ENV_STATE: torch.zeros(2, 10)})
@@ -69,4 +98,7 @@ def test_save_and_load(tmp_path):
     loaded = RobomimicBCPolicy.from_pretrained(tmp_path).eval()
     _, batch = robomimic_reference.random_image_observations(2)
 
-    torch.testing.assert_close(loaded.select_action(batch), policy.select_action(batch))
+    torch.manual_seed(1)
+    expected = policy.select_action(batch)
+    torch.manual_seed(1)
+    torch.testing.assert_close(loaded.select_action(batch), expected)

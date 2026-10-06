@@ -19,9 +19,13 @@ class RobomimicBCConfig(PreTrainedConfig):
             and of the center crop at inference; None disables cropping.
         spatial_softmax_num_kp: Number of keypoints each camera's spatial softmax extracts.
         image_feature_dim: Size of the feature each camera is projected to.
-        l2_weight: Weight of the mean squared error on the action.
-        l1_weight: Weight of the smooth L1 error on the action.
-        cos_weight: Weight of the cosine loss on the first three action dimensions.
+        use_gmm: Whether the policy outputs a Gaussian mixture over actions instead of one action.
+        gmm_num_modes: Number of Gaussians in the mixture.
+        gmm_min_std: Lower bound added to every Gaussian's standard deviation in training.
+        gmm_low_noise_eval: Whether the standard deviations shrink to 1e-4 outside training.
+        l2_weight: Without GMM, weight of the mean squared error on the action.
+        l1_weight: Without GMM, weight of the smooth L1 error on the action.
+        cos_weight: Without GMM, weight of the cosine loss on the first three action dimensions.
         optimizer_lr: Adam learning rate, kept constant.
         optimizer_weight_decay: Adam weight decay.
         optimizer_grad_clip_norm: Gradient norm limit; 0 disables clipping.
@@ -43,6 +47,11 @@ class RobomimicBCConfig(PreTrainedConfig):
     crop_shape: tuple[int, int] | None = (76, 76)
     spatial_softmax_num_kp: int = 32
     image_feature_dim: int = 64
+
+    use_gmm: bool = True
+    gmm_num_modes: int = 5
+    gmm_min_std: float = 1e-4
+    gmm_low_noise_eval: bool = True
 
     l2_weight: float = 1.0
     l1_weight: float = 0.0

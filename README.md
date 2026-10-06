@@ -84,21 +84,24 @@ networks instead of importing robomimic at runtime.
 `RobomimicBCConfig` registers the policy type `robomimic_bc`. Defaults follow
 robomimic's image experiments on the proficient-human (PH) datasets.
 
-| Setting                   | Default                                             | Config field                                       | Source                                                                                                                                                                                   |
-| ------------------------- | --------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Observations              | Proprioception and cameras; no object state         | `use_env_state` (False)                            | Repo `robomimic/scripts/generate_paper_configs.py:138-146` (image); low-dim experiments add `object` (`:67-72`)                                                                          |
-| Observation history       | None (single step)                                  | `n_obs_steps`, `observation_delta_indices`         | Repo `robomimic/config/base_config.py:193`, `:195`; `robomimic/algo/bc.py:111` reads step 0 only                                                                                         |
-| Action prediction         | One action per observation                          | `action_delta_indices`                             | Repo `robomimic/algo/bc.py:113`                                                                                                                                                          |
-| MLP hidden sizes          | (1024, 1024)                                        | `actor_layer_dims`                                 | Repo `robomimic/config/bc_config.py:41`, `robomimic/scripts/generate_paper_configs.py:367`                                                                                               |
-| Camera crop               | Random 76×76 in training, center 76×76 at inference | `crop_shape`                                       | Repo `robomimic/scripts/generate_paper_configs.py:163-168`                                                                                                                               |
-| Spatial softmax keypoints | 32                                                  | `spatial_softmax_num_kp`                           | Repo `robomimic/scripts/generate_paper_configs.py:157`                                                                                                                                   |
-| Feature size per camera   | 64                                                  | `image_feature_dim`                                | Repo `robomimic/scripts/generate_paper_configs.py:152`                                                                                                                                   |
-| Loss                      | Mean squared error only                             | `l2_weight` (1), `l1_weight` (0), `cos_weight` (0) | Repo `robomimic/config/bc_config.py:36-38`                                                                                                                                               |
-| Normalization             | None; images are only scaled to `[0, 1]`            | `normalization_mapping` (`IDENTITY`)               | Repo `robomimic/config/base_config.py:181` (observations), `:225` (actions), `robomimic/utils/obs_utils.py:921` (images); LeRobot already scales images (`datasets/io_utils.py:255-263`) |
-| Optimizer                 | Adam                                                | `get_optimizer_preset()`                           | Repo `robomimic/config/bc_config.py:27`                                                                                                                                                  |
-| Learning rate             | 1e-4, constant                                      | `optimizer_lr`                                     | Repo `robomimic/config/bc_config.py:28`, `:30` (no decay epochs)                                                                                                                         |
-| Weight decay              | 0                                                   | `optimizer_weight_decay`                           | Repo `robomimic/config/bc_config.py:33`                                                                                                                                                  |
-| Gradient clipping         | None                                                | `optimizer_grad_clip_norm` (0)                     | Repo `robomimic/config/base_config.py:239`; LeRobot skips clipping at 0 (`scripts/lerobot_train.py:178`)                                                                                 |
+| Setting                        | Default                                             | Config field                                       | Source                                                                                                                                                                                   |
+| ------------------------------ | --------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Observations                   | Proprioception and cameras; no object state         | `use_env_state` (False)                            | Repo `robomimic/scripts/generate_paper_configs.py:138-146` (image); low-dim experiments add `object` (`:67-72`)                                                                          |
+| Observation history            | None (single step)                                  | `n_obs_steps`, `observation_delta_indices`         | Repo `robomimic/config/base_config.py:193`, `:195`; `robomimic/algo/bc.py:111` reads step 0 only                                                                                         |
+| Action prediction              | One action per observation                          | `action_delta_indices`                             | Repo `robomimic/algo/bc.py:113`                                                                                                                                                          |
+| MLP hidden sizes               | (1024, 1024)                                        | `actor_layer_dims`                                 | Repo `robomimic/config/bc_config.py:41`, `robomimic/scripts/generate_paper_configs.py:367`                                                                                               |
+| Camera crop                    | Random 76×76 in training, center 76×76 at inference | `crop_shape`                                       | Repo `robomimic/scripts/generate_paper_configs.py:163-168`                                                                                                                               |
+| Spatial softmax keypoints      | 32                                                  | `spatial_softmax_num_kp`                           | Repo `robomimic/scripts/generate_paper_configs.py:157`                                                                                                                                   |
+| Feature size per camera        | 64                                                  | `image_feature_dim`                                | Repo `robomimic/scripts/generate_paper_configs.py:152`                                                                                                                                   |
+| Action head                    | Mixture of 5 Gaussians                              | `use_gmm` (True), `gmm_num_modes` (5)              | Repo `robomimic/scripts/generate_paper_configs.py:368` (human datasets), `robomimic/config/bc_config.py:53`                                                                              |
+| GMM minimum standard deviation | 1e-4                                                | `gmm_min_std`                                      | Repo `robomimic/config/bc_config.py:54`                                                                                                                                                  |
+| GMM noise outside training     | Every standard deviation set to 1e-4                | `gmm_low_noise_eval` (True)                        | Repo `robomimic/config/bc_config.py:56`                                                                                                                                                  |
+| Loss without GMM               | Mean squared error only                             | `l2_weight` (1), `l1_weight` (0), `cos_weight` (0) | Repo `robomimic/config/bc_config.py:36-38`                                                                                                                                               |
+| Normalization                  | None; images are only scaled to `[0, 1]`            | `normalization_mapping` (`IDENTITY`)               | Repo `robomimic/config/base_config.py:181` (observations), `:225` (actions), `robomimic/utils/obs_utils.py:921` (images); LeRobot already scales images (`datasets/io_utils.py:255-263`) |
+| Optimizer                      | Adam                                                | `get_optimizer_preset()`                           | Repo `robomimic/config/bc_config.py:27`                                                                                                                                                  |
+| Learning rate                  | 1e-4, constant                                      | `optimizer_lr`                                     | Repo `robomimic/config/bc_config.py:28`, `:30` (no decay epochs)                                                                                                                         |
+| Weight decay                   | 0                                                   | `optimizer_weight_decay`                           | Repo `robomimic/config/bc_config.py:33`                                                                                                                                                  |
+| Gradient clipping              | None                                                | `optimizer_grad_clip_norm` (0)                     | Repo `robomimic/config/base_config.py:239`; LeRobot skips clipping at 0 (`scripts/lerobot_train.py:178`)                                                                                 |
 
 LeRobot feeds every non-action dataset feature to the policy
 (`policies/factory.py:305-306`), while robomimic lists the observations each
@@ -111,9 +114,10 @@ data (`robomimic/scripts/generate_paper_configs.py:113`, `:131-132`), and
 batch size 100 for 2000 epochs of 100 steps (200K steps) on low-dim data
 (`:43`, `:61-62`).
 
-robomimic's paper runs BC with a GMM action head on human datasets
-(`robomimic/scripts/generate_paper_configs.py:368`). This policy starts with
-the deterministic head, robomimic's `BC` class.
+`tests/test_paper_defaults.py` checks these defaults against robomimic's own
+config for BC in the image experiments on PH Lift. `use_gmm=false` gives
+robomimic's plain `BC` class instead, which the paper uses only for
+machine-generated datasets (`robomimic/scripts/generate_paper_configs.py:370-372`).
 
 ### 3. Camera encoder
 
@@ -173,44 +177,58 @@ columns of the first MLP layer. Keeping LeRobot's order leaves robomimic's
 key names out of the encoder; the test reorders robomimic's output before
 comparing.
 
-### 5. Actor network
+### 5. MLP and action heads
 
-`MLPActor` in `lerobot_policy_robomimic/actor.py` is robomimic's
-`ActorNetwork` (Repo `robomimic/models/policy_nets.py:26`), which BC builds
-with `actor_layer_dims` (`robomimic/algo/bc.py:87-92`). It takes the
-observation encoder as an argument, so the recurrent and transformer actors of
-later policies can reuse the encoder. A test loads robomimic's weights,
-reordering the input columns of the first layer as in §4, and compares the
-actions (`tests/test_actor.py`).
+`MLP` in `lerobot_policy_robomimic/mlp.py` maps the encoded observations to
+features, and an action head in `lerobot_policy_robomimic/action_heads.py`
+turns them into actions. Together they are robomimic's `ActorNetwork`
+(Repo `robomimic/models/policy_nets.py:26`) or `GMMActorNetwork` (`:397`),
+which BC builds with `actor_layer_dims` (`robomimic/algo/bc.py:87-92`).
 
-| Part        | Behavior                                                      | Source                                                                                                                                              |
-| ----------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| MLP         | A linear layer and a ReLU for each size in `actor_layer_dims` | Repo `robomimic/models/obs_nets.py:617-623`; the last size is the MLP output and also gets a ReLU (`:623`, `robomimic/models/base_nets.py:256-258`) |
-| Action head | Linear layer to the action size                               | Repo `robomimic/models/obs_nets.py:627`, `:392` (`ObservationDecoder`)                                                                              |
-| Output      | `tanh`, so actions lie in `[-1, 1]`                           | Repo `robomimic/models/policy_nets.py:107`                                                                                                          |
+| Part                | Behavior                                                                                           | Source                                                                                                                                              |
+| ------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MLP                 | A linear layer and a ReLU for each size in `actor_layer_dims`                                      | Repo `robomimic/models/obs_nets.py:617-623`; the last size is the MLP output and also gets a ReLU (`:623`, `robomimic/models/base_nets.py:256-258`) |
+| `DeterministicHead` | Linear layer to the action size, then `tanh`                                                       | Repo `robomimic/models/obs_nets.py:627`, `:392` (`ObservationDecoder`), `robomimic/models/policy_nets.py:107`                                       |
+| Its loss            | `l2_weight` × mean squared error + `l1_weight` × smooth L1 + `cos_weight` × cosine loss            | Repo `robomimic/algo/bc.py:182-192`                                                                                                                 |
+| Its cosine loss     | Mean of 1 − cosine similarity over the first three action dimensions, the end-effector translation | Repo `robomimic/algo/bc.py:185`, `robomimic/utils/loss_utils.py:22-23`                                                                              |
+| `GMMHead` outputs   | Linear layers to the means and scales of each mode's Gaussian and to the mode logits               | Repo `robomimic/models/policy_nets.py:489-491`                                                                                                      |
+| Its means           | `tanh` of the output                                                                               | Repo `robomimic/models/policy_nets.py:514`                                                                                                          |
+| Its scales          | `softplus` of the output plus `gmm_min_std`; 1e-4 outside training with `gmm_low_noise_eval`       | Repo `robomimic/models/policy_nets.py:519`, `:522`                                                                                                  |
+| Its distribution    | A categorical choice of mode, then a diagonal Gaussian over the action dimensions                  | Repo `robomimic/models/policy_nets.py:526-535`                                                                                                      |
+| Its loss            | Negative mean log-likelihood of the demonstrated actions                                           | Repo `robomimic/algo/bc.py:300`, `:322` (`BC_Gaussian`, which `BC_GMM` inherits at `:347`)                                                          |
+| Its action          | A sample from the distribution                                                                     | Repo `robomimic/models/policy_nets.py:555`                                                                                                          |
 
 robomimic splits the MLP into hidden layers and an output layer
 (`robomimic/models/obs_nets.py:619-620`), but since both end in a ReLU, the
-result is one linear layer and one ReLU per size, which is how `MLPActor`
-builds it.
+result is one linear layer and one ReLU per size, which is how `MLP` builds
+it.
+
+Even at inference, `GMMHead` samples the mode from the mixture weights instead
+of taking the most likely one; low noise only shrinks the Gaussian around
+that mode's mean, as in robomimic.
+
+Each action head carries its own loss and action choice (this port). robomimic
+instead pairs each network with an algorithm subclass, chosen from the config
+flags (`robomimic/algo/bc.py:46-73`). Keeping the head separate from the MLP
+lets the recurrent and transformer policies reuse both heads.
 
 ### 6. Policy
 
-`RobomimicBCPolicy` wraps the actor in the methods LeRobot's training and
-evaluation loops call, following robomimic's `BC` class
-(Repo `robomimic/algo/bc.py:78`). A test loads the same weights into
-robomimic's `BC` algorithm and compares the losses and actions
-(`tests/test_policy.py`).
+`RobomimicBCPolicy` chains the observation encoder, the MLP, and the action
+head in the methods LeRobot's training and evaluation loops call, following
+robomimic's `BC` and `BC_GMM` classes (Repo `robomimic/algo/bc.py:78`,
+`:347`). Tests load the same weights into robomimic's algorithms, reordering
+the input columns of the first MLP layer as in §4, and compare the losses and
+actions of both heads (`tests/test_policy.py`).
 
-| Method                 | Behavior                                                                                                     | Source                                                                                                                                                                                                                                |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `forward`              | `l2_weight` × mean squared error + `l1_weight` × smooth L1 + `cos_weight` × cosine loss; each term is logged | Repo `robomimic/algo/bc.py:182-192`                                                                                                                                                                                                   |
-| Cosine loss            | Mean of 1 − cosine similarity over the first three action dimensions, the end-effector translation           | Repo `robomimic/algo/bc.py:185`, `robomimic/utils/loss_utils.py:22-23`                                                                                                                                                                |
-| `select_action`        | The actor's action for the current observation, without gradients                                            | Repo `robomimic/algo/bc.py:239-251`                                                                                                                                                                                                   |
-| `predict_action_chunk` | The same action as a chunk of length 1                                                                       | This port: LeRobot expects `(B, chunk_size, action_dim)` (Adding a Policy guide); BC predicts one action                                                                                                                              |
-| `__init__`             | Takes `**kwargs` and ignores them                                                                            | LeRobot: `make_policy` also passes `dataset_stats` and `dataset_meta` (`policies/factory.py:323`, `:326`); built-in policies take `**kwargs` (`policies/diffusion/modeling_diffusion.py:65-69`)                                       |
-| `reset`                | Nothing to reset                                                                                             | Repo `robomimic/algo/algo.py:365` (BC keeps the base class's empty `reset`)                                                                                                                                                           |
-| `get_optim_params`     | All parameters, returned as `self.parameters()`                                                              | Repo `robomimic/algo/algo.py:169-193` (one optimizer for the policy network); LeRobot passes the result straight to the optimizer (`optim/factory.py:37-40`), as Diffusion expects (`policies/diffusion/modeling_diffusion.py:89-90`) |
+| Method                 | Behavior                                                                | Source                                                                                                                                                                                                                                |
+| ---------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `forward`              | The action head's loss and the values it logs                           | Repo `robomimic/algo/bc.py:182-192` (`BC`), `:300`, `:322` (`BC_GMM`)                                                                                                                                                                 |
+| `select_action`        | The action head's action for the current observation, without gradients | Repo `robomimic/algo/bc.py:239-251`                                                                                                                                                                                                   |
+| `predict_action_chunk` | The same action as a chunk of length 1                                  | This port: LeRobot expects `(B, chunk_size, action_dim)` (Adding a Policy guide); BC predicts one action                                                                                                                              |
+| `__init__`             | Takes `**kwargs` and ignores them                                       | LeRobot: `make_policy` also passes `dataset_stats` and `dataset_meta` (`policies/factory.py:323`, `:326`); built-in policies take `**kwargs` (`policies/diffusion/modeling_diffusion.py:65-69`)                                       |
+| `reset`                | Nothing to reset                                                        | Repo `robomimic/algo/algo.py:365` (BC keeps the base class's empty `reset`)                                                                                                                                                           |
+| `get_optim_params`     | All parameters, returned as `self.parameters()`                         | Repo `robomimic/algo/algo.py:169-193` (one optimizer for the policy network); LeRobot passes the result straight to the optimizer (`optim/factory.py:37-40`), as Diffusion expects (`policies/diffusion/modeling_diffusion.py:89-90`) |
 
 `__init__` and `get_optim_params` differ from the guide's template, whose
 `__init__` takes only `dataset_stats` and whose `get_optim_params` returns
