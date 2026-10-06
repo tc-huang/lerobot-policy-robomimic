@@ -666,3 +666,33 @@ a policy; it only uses a VAE as the action sampler of BCQ
 (`robomimic/scripts/generate_paper_configs.py:463-470`). It reuses the camera
 encoder (§3) and the observation encoder (§4) of BC, but no action head: a
 conditional VAE models the action instead.
+
+### 17. Configuration
+
+`RobomimicBCVAEConfig` registers the policy type `robomimic_bc_vae`. It
+inherits only `RobomimicPolicyConfig`, the observation, encoder, and optimizer
+settings of §2, since BC-VAE has no action head. BC-VAE uses the same
+optimizer as BC (Repo `robomimic/config/bc_config.py:27-33`). The VAE settings
+below keep robomimic's defaults; `tests/test_paper_defaults.py` checks them
+against robomimic's config for BC-VAE in the image experiments.
+
+| Setting                  | Default                                      | Config field                                                                                         | Source                                                                            |
+| ------------------------ | -------------------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Latent size              | 14, twice the size of a 7-dimensional action | `vae_latent_dim`                                                                                     | Repo `robomimic/config/bc_config.py:60`                                           |
+| Latent bound             | None                                         | `vae_latent_clip`                                                                                    | Repo `robomimic/config/bc_config.py:61`                                           |
+| KL weight                | 1                                            | `vae_kl_weight`                                                                                      | Repo `robomimic/config/bc_config.py:62`                                           |
+| Encoder and decoder MLPs | (300, 400) each                              | `vae_encoder_layer_dims`, `vae_decoder_layer_dims`                                                   | Repo `robomimic/config/bc_config.py:81-82`                                        |
+| Decoder input            | Latent and observation                       | `vae_decoder_is_conditioned` (True)                                                                  | Repo `robomimic/config/bc_config.py:65`                                           |
+| Reconstruction loss      | Mean of the squared errors                   | `vae_reconstruction_sum_across_elements` (False)                                                     | Repo `robomimic/config/bc_config.py:66`, `robomimic/models/vae_nets.py:1277-1284` |
+| Prior                    | Fixed N(0, 1)                                | `vae_prior_learn` (False)                                                                            | Repo `robomimic/config/bc_config.py:69`                                           |
+| Learned prior            | One Gaussian, independent of the observation | `vae_prior_is_conditioned` (False), `vae_prior_use_gmm` (False), `vae_prior_layer_dims` ((300, 400)) | Repo `robomimic/config/bc_config.py:70-71`, `:83`                                 |
+| Mixture prior            | 10 modes with uniform weights                | `vae_prior_gmm_num_modes` (10), `vae_prior_gmm_learn_weights` (False)                                | Repo `robomimic/config/bc_config.py:72-73`                                        |
+
+The config raises `ValueError` for the combinations robomimic rejects with
+assertions: neither the decoder nor the prior conditioned on the observation
+(Repo `robomimic/models/vae_nets.py:940`), and a conditioned or mixture prior
+that is not learned (`:943`, `:983`).
+
+robomimic's categorical prior (`robomimic/config/bc_config.py:74-79`) is not
+ported. It lowers the Gumbel-softmax temperature by a fixed step every epoch
+(`robomimic/algo/bc.py:393-400`), and LeRobot gives the policy no epochs.

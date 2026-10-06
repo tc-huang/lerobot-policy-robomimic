@@ -139,6 +139,25 @@ def bc_gaussian_config(**gaussian):
     return config
 
 
+def bc_vae_config(**vae):
+    """Returns `bc_config` with robomimic's VAE policy, `BC_VAE`, and `vae` overrides.
+
+    The paper trains no BC-VAE, so its settings keep robomimic's defaults
+    (`robomimic/config/bc_config.py:59-83`) unless overridden; nested settings are given as
+    `{"prior": {"learn": True}}`.
+    """
+    config = bc_config(gmm=False)
+    with config.algo.values_unlocked():
+        config.algo.vae.enabled = True
+        for name, value in vae.items():
+            if isinstance(value, dict):
+                for key, nested in value.items():
+                    config.algo.vae[name][key] = nested
+            else:
+                config.algo.vae[name] = value
+    return config
+
+
 def bc_rnn_config(hdf5_type: str = "image"):
     """Returns robomimic's config for BC-RNN in the experiments on proficient-human Lift data.
 

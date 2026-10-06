@@ -587,3 +587,31 @@ BC-VAE 是 robomimic 從 v0.1 就有的 BC 變體（原 repo `robomimic/algo/bc.
 當作 policy 訓練，只把 VAE 用作 BCQ 的 action sampler
 （`robomimic/scripts/generate_paper_configs.py:463-470`）。它重用 BC 的相機 encoder（§3）與
 observation encoder（§4），但沒有 action head，而是以條件式 VAE 建模 action。
+
+### 17. Configuration
+
+`RobomimicBCVAEConfig` 註冊 policy type `robomimic_bc_vae`。BC-VAE 沒有 action head，因此它
+只繼承 `RobomimicPolicyConfig`，也就是 §2 的 observation、encoder 與 optimizer 設定；
+BC-VAE 的 optimizer 和 BC 相同（原 repo `robomimic/config/bc_config.py:27-33`）。下表的
+VAE 設定沿用 robomimic 的預設值；`tests/test_paper_defaults.py` 會把它們和 robomimic 在
+image 實驗中的 BC-VAE config 比對。
+
+| 設定                   | 預設值                              | Config 欄位                                                                                             | 來源                                                                                 |
+| ---------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Latent 大小            | 14，即 7 維 action 的兩倍           | `vae_latent_dim`                                                                                        | 原 repo `robomimic/config/bc_config.py:60`                                           |
+| Latent 範圍限制        | 無                                  | `vae_latent_clip`                                                                                       | 原 repo `robomimic/config/bc_config.py:61`                                           |
+| KL 權重                | 1                                   | `vae_kl_weight`                                                                                         | 原 repo `robomimic/config/bc_config.py:62`                                           |
+| Encoder 與 decoder MLP | 各為 (300, 400)                     | `vae_encoder_layer_dims`、`vae_decoder_layer_dims`                                                      | 原 repo `robomimic/config/bc_config.py:81-82`                                        |
+| Decoder 輸入           | Latent 與 observation               | `vae_decoder_is_conditioned`（True）                                                                    | 原 repo `robomimic/config/bc_config.py:65`                                           |
+| 重建 loss              | 平方誤差的平均                      | `vae_reconstruction_sum_across_elements`（False）                                                       | 原 repo `robomimic/config/bc_config.py:66`、`robomimic/models/vae_nets.py:1277-1284` |
+| Prior                  | 固定的 N(0, 1)                      | `vae_prior_learn`（False）                                                                              | 原 repo `robomimic/config/bc_config.py:69`                                           |
+| 可學習的 prior         | 單一高斯分佈，不依 observation 而變 | `vae_prior_is_conditioned`（False）、`vae_prior_use_gmm`（False）、`vae_prior_layer_dims`（(300, 400)） | 原 repo `robomimic/config/bc_config.py:70-71`、`:83`                                 |
+| 混合 prior             | 10 個 mode，權重均等                | `vae_prior_gmm_num_modes`（10）、`vae_prior_gmm_learn_weights`（False）                                 | 原 repo `robomimic/config/bc_config.py:72-73`                                        |
+
+robomimic 以 assertion 拒絕的組合，config 會丟出 `ValueError`：decoder 與 prior 都不依
+observation 條件化（原 repo `robomimic/models/vae_nets.py:940`），以及 prior 依
+observation 條件化或使用混合分佈、卻沒有設為可學習（`:943`、`:983`）。
+
+robomimic 的 categorical prior（`robomimic/config/bc_config.py:74-79`）不移植。它每個 epoch
+把 Gumbel-softmax 的溫度降低固定的量（`robomimic/algo/bc.py:393-400`），而 LeRobot 不會把
+epoch 交給 policy。

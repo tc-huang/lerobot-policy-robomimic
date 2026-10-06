@@ -1,13 +1,25 @@
 import robomimic_reference
 
-from lerobot_policy_robomimic import RobomimicBCConfig, RobomimicBCRNNConfig, RobomimicBCTransformerConfig
+from lerobot_policy_robomimic import (
+    RobomimicBCConfig,
+    RobomimicBCRNNConfig,
+    RobomimicBCTransformerConfig,
+    RobomimicBCVAEConfig,
+)
 
 
-def assert_shared_defaults_match(ours, paper):
+def assert_policy_defaults_match(ours, paper):
     rgb = paper.observation.encoder.rgb
     assert ours.optimizer_lr == paper.algo.optim_params.policy.learning_rate.initial
     assert ours.optimizer_weight_decay == paper.algo.optim_params.policy.regularization.L2
     assert paper.train.max_grad_norm is None and ours.optimizer_grad_clip_norm == 0
+    assert ours.crop_shape == (rgb.obs_randomizer_kwargs.crop_height, rgb.obs_randomizer_kwargs.crop_width)
+    assert ours.spatial_softmax_num_kp == rgb.core_kwargs.pool_kwargs.num_kp
+    assert ours.image_feature_dim == rgb.core_kwargs.feature_dimension
+
+
+def assert_shared_defaults_match(ours, paper):
+    assert_policy_defaults_match(ours, paper)
     assert ours.use_gmm == paper.algo.gmm.enabled
     assert ours.gmm_num_modes == paper.algo.gmm.num_modes
     assert ours.gmm_min_std == paper.algo.gmm.min_std
@@ -18,9 +30,6 @@ def assert_shared_defaults_match(ours, paper):
         paper.algo.loss.l1_weight,
         paper.algo.loss.cos_weight,
     )
-    assert ours.crop_shape == (rgb.obs_randomizer_kwargs.crop_height, rgb.obs_randomizer_kwargs.crop_width)
-    assert ours.spatial_softmax_num_kp == rgb.core_kwargs.pool_kwargs.num_kp
-    assert ours.image_feature_dim == rgb.core_kwargs.feature_dimension
 
 
 def test_bc_defaults_match_robomimic_image_experiment():
@@ -86,3 +95,26 @@ def test_bc_transformer_defaults_match_robomimic_template():
     assert [ours.scheduler_decay_epochs] == list(learning_rate.epoch_schedule)
     assert ours.scheduler_decay_factor == learning_rate.decay_factor
     assert ours.scheduler_steps_per_epoch == template.experiment.epoch_every_n_steps
+
+
+def test_bc_vae_defaults_match_robomimic():
+    ours = RobomimicBCVAEConfig(device="cpu")
+    reference = robomimic_reference.bc_vae_config()
+    vae = reference.algo.vae
+
+    assert_policy_defaults_match(ours, reference)
+    assert list(reference.algo.optim_params.policy.learning_rate.epoch_schedule) == []
+    assert ours.vae_latent_dim == vae.latent_dim
+    assert ours.vae_latent_clip == vae.latent_clip
+    assert ours.vae_kl_weight == vae.kl_weight
+    assert ours.vae_encoder_layer_dims == tuple(vae.encoder_layer_dims)
+    assert ours.vae_decoder_layer_dims == tuple(vae.decoder_layer_dims)
+    assert ours.vae_decoder_is_conditioned == vae.decoder.is_conditioned
+    assert ours.vae_reconstruction_sum_across_elements == vae.decoder.reconstruction_sum_across_elements
+    assert ours.vae_prior_learn == vae.prior.learn
+    assert ours.vae_prior_is_conditioned == vae.prior.is_conditioned
+    assert ours.vae_prior_layer_dims == tuple(vae.prior_layer_dims)
+    assert ours.vae_prior_use_gmm == vae.prior.use_gmm
+    assert ours.vae_prior_gmm_num_modes == vae.prior.gmm_num_modes
+    assert ours.vae_prior_gmm_learn_weights == vae.prior.gmm_learn_weights
+    assert not vae.prior.use_categorical

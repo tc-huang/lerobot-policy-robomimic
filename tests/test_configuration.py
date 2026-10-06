@@ -3,7 +3,12 @@ from lerobot.configs import FeatureType, PolicyFeature
 from lerobot.optim import AdamConfig, AdamWConfig
 from lerobot.utils.constants import ACTION, OBS_ENV_STATE, OBS_IMAGES, OBS_STATE
 
-from lerobot_policy_robomimic import RobomimicBCConfig, RobomimicBCRNNConfig, RobomimicBCTransformerConfig
+from lerobot_policy_robomimic import (
+    RobomimicBCConfig,
+    RobomimicBCRNNConfig,
+    RobomimicBCTransformerConfig,
+    RobomimicBCVAEConfig,
+)
 from lerobot_policy_robomimic.schedulers import RobomimicLinearSchedulerConfig
 
 STATE = PolicyFeature(type=FeatureType.STATE, shape=(9,))
@@ -12,7 +17,9 @@ IMAGE = PolicyFeature(type=FeatureType.VISUAL, shape=(3, 84, 84))
 ACTION_FEATURE = PolicyFeature(type=FeatureType.ACTION, shape=(7,))
 
 
-@pytest.fixture(params=[RobomimicBCConfig, RobomimicBCRNNConfig, RobomimicBCTransformerConfig])
+@pytest.fixture(
+    params=[RobomimicBCConfig, RobomimicBCRNNConfig, RobomimicBCTransformerConfig, RobomimicBCVAEConfig]
+)
 def config_class(request):
     return request.param
 
@@ -67,8 +74,8 @@ def test_reads_one_observation_per_step(config_class):
         make_config(config_class, n_obs_steps=2)
 
 
-@pytest.mark.parametrize("config_class", [RobomimicBCConfig, RobomimicBCRNNConfig])
-def test_bc_and_bc_rnn_use_constant_adam(config_class):
+@pytest.mark.parametrize("config_class", [RobomimicBCConfig, RobomimicBCRNNConfig, RobomimicBCVAEConfig])
+def test_bc_bc_rnn_and_bc_vae_use_constant_adam(config_class):
     optimizer = make_config(config_class).get_optimizer_preset()
 
     assert optimizer == AdamConfig(lr=1e-4, weight_decay=0.0, grad_clip_norm=0.0)
@@ -90,8 +97,9 @@ def test_only_bc_has_a_gaussian_head(config_class):
         make_config(config_class, use_gaussian=True)
 
 
-def test_bc_reads_single_steps():
-    config = make_config(RobomimicBCConfig)
+@pytest.mark.parametrize("config_class", [RobomimicBCConfig, RobomimicBCVAEConfig])
+def test_bc_and_bc_vae_read_single_steps(config_class):
+    config = make_config(config_class)
 
     assert config.observation_delta_indices is None
     assert config.action_delta_indices is None
@@ -114,3 +122,25 @@ def test_bc_transformer_reads_its_context_and_one_action():
 def test_bc_transformer_heads_must_divide_the_width():
     with pytest.raises(ValueError, match="divisible"):
         make_config(RobomimicBCTransformerConfig, transformer_embed_dim=100, transformer_num_heads=8)
+
+
+@pytest.mark.parametrize(
+    ("settings", "message"),
+    [
+        ({"vae_decoder_is_conditioned": False}, "decoder, its prior, or both"),
+        ({"vae_prior_is_conditioned": True}, "vae_prior_is_conditioned needs vae_prior_learn"),
+        ({"vae_prior_use_gmm": True}, "vae_prior_use_gmm needs vae_prior_learn"),
+    ],
+)
+def test_bc_vae_rejects_what_robomimic_rejects(settings, message):
+    with pytest.raises(ValueError, match=message):
+        make_config(RobomimicBCVAEConfig, **settings)
+
+
+def test_bc_vae_may_condition_only_its_learned_prior():
+    make_config(
+        RobomimicBCVAEConfig,
+        vae_decoder_is_conditioned=False,
+        vae_prior_learn=True,
+        vae_prior_is_conditioned=True,
+    )
