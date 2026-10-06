@@ -147,14 +147,20 @@ robomimic 把 MLP 拆成隱藏層與輸出層（`robomimic/models/obs_nets.py:61
 robomimic 的 `BC` class（原 repo `robomimic/algo/bc.py:78`）。測試會把相同權重載入
 robomimic 的 `BC` 演算法，比對 loss 與 action（`tests/test_policy.py`）。
 
-| Method                 | 行為                                                                                        | 來源                                                                                             |
-| ---------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `forward`              | `l2_weight` × 均方誤差 + `l1_weight` × smooth L1 + `cos_weight` × cosine loss；各項都會記錄 | 原 repo `robomimic/algo/bc.py:182-192`                                                           |
-| Cosine loss            | 前三個 action 維度（末端執行器的位移）上 1 − cosine similarity 的平均                       | 原 repo `robomimic/algo/bc.py:185`、`robomimic/utils/loss_utils.py:22-23`                        |
-| `select_action`        | actor 對當下 observation 輸出的 action，不計算梯度                                          | 原 repo `robomimic/algo/bc.py:239-251`                                                           |
-| `predict_action_chunk` | 同一個 action，作為長度 1 的 chunk                                                          | 本專案：LeRobot 預期 `(B, chunk_size, action_dim)`（Adding a Policy 指南）；BC 只預測一個 action |
-| `reset`                | 沒有需要重設的狀態                                                                          | 原 repo `robomimic/algo/algo.py:365`（BC 沿用基底類別空的 `reset`）                              |
-| `get_optim_params`     | 所有參數放在同一組                                                                          | 原 repo `robomimic/algo/algo.py:169-193`（policy 網路只有一個 optimizer）                        |
+| Method                 | 行為                                                                                        | 來源                                                                                                                                                                                                                  |
+| ---------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `forward`              | `l2_weight` × 均方誤差 + `l1_weight` × smooth L1 + `cos_weight` × cosine loss；各項都會記錄 | 原 repo `robomimic/algo/bc.py:182-192`                                                                                                                                                                                |
+| Cosine loss            | 前三個 action 維度（末端執行器的位移）上 1 − cosine similarity 的平均                       | 原 repo `robomimic/algo/bc.py:185`、`robomimic/utils/loss_utils.py:22-23`                                                                                                                                             |
+| `select_action`        | actor 對當下 observation 輸出的 action，不計算梯度                                          | 原 repo `robomimic/algo/bc.py:239-251`                                                                                                                                                                                |
+| `predict_action_chunk` | 同一個 action，作為長度 1 的 chunk                                                          | 本專案：LeRobot 預期 `(B, chunk_size, action_dim)`（Adding a Policy 指南）；BC 只預測一個 action                                                                                                                      |
+| `__init__`             | 接收 `**kwargs` 並忽略                                                                      | LeRobot：`make_policy` 還會傳入 `dataset_stats` 與 `dataset_meta`（`policies/factory.py:323`、`:326`）；內建 policy 都接收 `**kwargs`（`policies/diffusion/modeling_diffusion.py:65-69`）                             |
+| `reset`                | 沒有需要重設的狀態                                                                          | 原 repo `robomimic/algo/algo.py:365`（BC 沿用基底類別空的 `reset`）                                                                                                                                                   |
+| `get_optim_params`     | 所有參數，以 `self.parameters()` 回傳                                                       | 原 repo `robomimic/algo/algo.py:169-193`（policy 網路只有一個 optimizer）；LeRobot 會把結果直接交給 optimizer（`optim/factory.py:37-40`），Diffusion 也是這樣回傳（`policies/diffusion/modeling_diffusion.py:89-90`） |
+
+`__init__` 與 `get_optim_params` 和指南的 template 不同：template 的 `__init__` 只接收
+`dataset_stats`，`get_optim_params` 回傳 `{"params": ...}`。在 LeRobot v0.6.1 中，前者
+會因 `dataset_meta` 拋出 `TypeError`，後者會讓 optimizer 迭代到字串 `"params"`；兩者都是
+在 §7 的 `lerobot-train` 執行中發現的。
 
 import robomimic 的 `BC` 時會一併 import 所有其他演算法（原 repo
 `robomimic/algo/__init__.py`），因此測試需要 `diffusers` 與 `imageio`。它們是 dev

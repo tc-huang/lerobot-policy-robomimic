@@ -164,14 +164,21 @@ evaluation loops call, following robomimic's `BC` class
 robomimic's `BC` algorithm and compares the losses and actions
 (`tests/test_policy.py`).
 
-| Method                 | Behavior                                                                                                     | Source                                                                                                   |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| `forward`              | `l2_weight` × mean squared error + `l1_weight` × smooth L1 + `cos_weight` × cosine loss; each term is logged | Repo `robomimic/algo/bc.py:182-192`                                                                      |
-| Cosine loss            | Mean of 1 − cosine similarity over the first three action dimensions, the end-effector translation           | Repo `robomimic/algo/bc.py:185`, `robomimic/utils/loss_utils.py:22-23`                                   |
-| `select_action`        | The actor's action for the current observation, without gradients                                            | Repo `robomimic/algo/bc.py:239-251`                                                                      |
-| `predict_action_chunk` | The same action as a chunk of length 1                                                                       | This port: LeRobot expects `(B, chunk_size, action_dim)` (Adding a Policy guide); BC predicts one action |
-| `reset`                | Nothing to reset                                                                                             | Repo `robomimic/algo/algo.py:365` (BC keeps the base class's empty `reset`)                              |
-| `get_optim_params`     | All parameters in one group                                                                                  | Repo `robomimic/algo/algo.py:169-193` (one optimizer for the policy network)                             |
+| Method                 | Behavior                                                                                                     | Source                                                                                                                                                                                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `forward`              | `l2_weight` × mean squared error + `l1_weight` × smooth L1 + `cos_weight` × cosine loss; each term is logged | Repo `robomimic/algo/bc.py:182-192`                                                                                                                                                                                                   |
+| Cosine loss            | Mean of 1 − cosine similarity over the first three action dimensions, the end-effector translation           | Repo `robomimic/algo/bc.py:185`, `robomimic/utils/loss_utils.py:22-23`                                                                                                                                                                |
+| `select_action`        | The actor's action for the current observation, without gradients                                            | Repo `robomimic/algo/bc.py:239-251`                                                                                                                                                                                                   |
+| `predict_action_chunk` | The same action as a chunk of length 1                                                                       | This port: LeRobot expects `(B, chunk_size, action_dim)` (Adding a Policy guide); BC predicts one action                                                                                                                              |
+| `__init__`             | Takes `**kwargs` and ignores them                                                                            | LeRobot: `make_policy` also passes `dataset_stats` and `dataset_meta` (`policies/factory.py:323`, `:326`); built-in policies take `**kwargs` (`policies/diffusion/modeling_diffusion.py:65-69`)                                       |
+| `reset`                | Nothing to reset                                                                                             | Repo `robomimic/algo/algo.py:365` (BC keeps the base class's empty `reset`)                                                                                                                                                           |
+| `get_optim_params`     | All parameters, returned as `self.parameters()`                                                              | Repo `robomimic/algo/algo.py:169-193` (one optimizer for the policy network); LeRobot passes the result straight to the optimizer (`optim/factory.py:37-40`), as Diffusion expects (`policies/diffusion/modeling_diffusion.py:89-90`) |
+
+`__init__` and `get_optim_params` differ from the guide's template, whose
+`__init__` takes only `dataset_stats` and whose `get_optim_params` returns
+`{"params": ...}`. With LeRobot v0.6.1, the first raises `TypeError` for
+`dataset_meta` and the second makes the optimizer iterate over the string
+`"params"`; both surfaced in the `lerobot-train` run in §7.
 
 Importing robomimic's `BC` also imports every other algorithm
 (Repo `robomimic/algo/__init__.py`), so the test needs `diffusers` and

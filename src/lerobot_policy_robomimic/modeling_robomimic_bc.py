@@ -1,9 +1,10 @@
+from collections.abc import Iterator
 from typing import Any
 
 import torch
 from lerobot.policies import PreTrainedPolicy
 from lerobot.utils.constants import ACTION
-from torch import Tensor
+from torch import Tensor, nn
 from torch.nn.functional import cosine_similarity, mse_loss, smooth_l1_loss
 
 from .actor import MLPActor
@@ -17,8 +18,8 @@ class RobomimicBCPolicy(PreTrainedPolicy):
     config_class = RobomimicBCConfig
     name = "robomimic_bc"
 
-    def __init__(self, config: RobomimicBCConfig, dataset_stats: dict[str, Any] | None = None):
-        super().__init__(config, dataset_stats)
+    def __init__(self, config: RobomimicBCConfig, **kwargs: Any):
+        super().__init__(config)
         config.validate_features()
         self.config = config
         encoder = ObservationEncoder(
@@ -32,8 +33,8 @@ class RobomimicBCPolicy(PreTrainedPolicy):
     def reset(self) -> None:
         """BC keeps no state between steps."""
 
-    def get_optim_params(self) -> dict:
-        return {"params": self.parameters()}
+    def get_optim_params(self) -> Iterator[nn.Parameter]:
+        return self.parameters()
 
     @torch.no_grad()
     def predict_action_chunk(self, batch: dict[str, Tensor], **kwargs) -> Tensor:
