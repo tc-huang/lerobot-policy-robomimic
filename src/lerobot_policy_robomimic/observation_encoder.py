@@ -1,5 +1,7 @@
 """Turns the observations a robomimic policy reads into one feature vector."""
 
+from collections import OrderedDict
+
 import torch
 from lerobot.configs import FeatureType, PolicyFeature
 from lerobot.utils.constants import OBS_IMAGES
@@ -24,14 +26,17 @@ class ObservationEncoder(nn.Module):
     ):
         super().__init__()
         self.keys = list(features)
-        self.crop = RandomCrop(crop_shape) if crop_shape is not None else nn.Identity()
         self.cameras = nn.ModuleDict()
         self.output_dim = 0
         for key, feature in features.items():
             if feature.type is FeatureType.VISUAL:
                 height, width = crop_shape or feature.shape[1:]
                 self.cameras[self.camera_name(key)] = nn.Sequential(
-                    ImageEncoder(height, width, num_kp, image_feature_dim), nn.ReLU()
+                    OrderedDict(
+                        crop=RandomCrop(crop_shape) if crop_shape is not None else nn.Identity(),
+                        encoder=ImageEncoder(height, width, num_kp, image_feature_dim),
+                        activation=nn.ReLU(),
+                    )
                 )
                 self.output_dim += image_feature_dim
             else:
@@ -48,7 +53,7 @@ class ObservationEncoder(nn.Module):
         for key in self.keys:
             camera = self.camera_name(key)
             if camera in self.cameras:
-                features.append(self.cameras[camera](self.crop(batch[key])))
+                features.append(self.cameras[camera](batch[key]))
             else:
                 features.append(batch[key])
         return torch.cat(features, dim=-1)

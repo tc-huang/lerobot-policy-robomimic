@@ -36,7 +36,9 @@ def test_matches_robomimic_up_to_feature_order():
     reference = robomimic_reference.observation_encoder(obs_shapes).eval()
     ours = ObservationEncoder(image_features(), crop_shape=(76, 76), num_kp=32, image_feature_dim=64).eval()
     for camera in CAMERAS:
-        robomimic_reference.load_visual_core(ours.cameras[camera][0], reference.obs_nets[f"{camera}_image"])
+        robomimic_reference.load_visual_core(
+            ours.cameras[camera].encoder, reference.obs_nets[f"{camera}_image"]
+        )
 
     obs = {key: torch.randn(4, dim) for key, dim in STATE_KEYS.items()}
     obs |= {f"{camera}_image": torch.rand(4, *IMAGE_SHAPE) for camera in CAMERAS}
