@@ -102,6 +102,35 @@ from those the demos were recorded with: its Panda controller reads actions
 in the robot base frame instead of the world frame (`input_ref_frame`), and
 the demos turn off `lite_physics`.
 
+## Simulation
+
+`RobomimicEnvConfig` in `lerobot_policy_robomimic/env_config.py` registers the
+LeRobot env type `robomimic`, and `RobomimicEnv` in
+`lerobot_policy_robomimic/robosuite_env.py` wraps robosuite the way robomimic's
+rollouts do. The env is rebuilt from the `meta/robomimic_env_args.json` of a
+converted dataset (§ Datasets), and robosuite is imported only when an env is
+built, so it stays in the `sim` extra. Sources are cited as described under
+Design.
+
+| Part            | Behavior                                                                                                  | Source                                                                                                                          |
+| --------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Construction    | `robosuite.make` with the env args, rendering only the requested cameras and always the object state      | Repo `robomimic/envs/env_robosuite.py:87`, `:116`                                                                               |
+| Images          | Flipped upright, as `pixels/<camera>`                                                                     | Repo `robomimic/envs/env_robosuite.py:255`                                                                                      |
+| Proprioception  | The dataset's state keys, concatenated as `agent_pos`                                                     | § Datasets                                                                                                                      |
+| Object state    | robosuite's `object-state`, as `environment_state`                                                        | Repo `robomimic/envs/env_robosuite.py:267`                                                                                      |
+| Success and end | `_check_success()`; an episode ends on success                                                            | Repo `robomimic/envs/env_robosuite.py:407`; `robomimic/scripts/generate_paper_configs.py:53`, `:123` (`terminate_on_success`)   |
+| Episode length  | 400 steps for Lift, Can, and Square; 700 for Transport and Tool Hang                                      | Repo `robomimic/__init__.py:63`                                                                                                 |
+| Initial states  | robosuite's random reset; a seed sets NumPy's global generator, which robosuite 1.5.1 places objects with | robosuite 1.5.1 `robosuite/utils/placement_samplers.py:167`                                                                     |
+| Batched envs    | Each env stops simulating once its episode ends, with `NEXT_STEP` autoreset                               | LeRobot `envs/utils.py:241` (`freeze_after_episode_end`), `envs/libero.py:526`                                                  |
+| Features        | Read from a robosuite env built without cameras when the config is created                                | This port: LeRobot replaces a loaded policy's action feature with the env's (`policies/factory.py:304`), so sizes must be exact |
+
+Tests build robomimic's own `EnvRobosuite` from the same env args, reset both
+with the same seed, and compare five steps of images, proprioception, object
+state, reward, and success (`tests/test_env.py`). The comparison starts from
+seeded resets rather than a copied simulator state, because robosuite's
+controllers and its visual markers keep state that a copied simulator state
+leaves behind.
+
 ## Design
 
 Each robomimic policy is rebuilt here from scratch, one component at a time.

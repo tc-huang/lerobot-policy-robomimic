@@ -92,6 +92,31 @@ robomimic 沒有釋出 v1.5 的 image dataset；它是用 `robomimic/scripts/dat
 控制器以機器人底座座標系、而非世界座標系解讀 action（`input_ref_frame`），而 demo 關閉了
 `lite_physics`。
 
+## Simulation
+
+`lerobot_policy_robomimic/env_config.py` 的 `RobomimicEnvConfig` 註冊 LeRobot env type
+`robomimic`，`lerobot_policy_robomimic/robosuite_env.py` 的 `RobomimicEnv` 則以 robomimic rollout
+的方式包裝 robosuite。env 是依轉換後 dataset 的 `meta/robomimic_env_args.json` 重建的（見
+Datasets 一節）；robosuite 只在建立 env 時才 import，因此它留在 `sim` extra 中。來源標示方式見
+「設計」一節。
+
+| 部分         | 行為                                                                                       | 來源                                                                                                                              |
+| ------------ | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| 建立         | 以 env args 呼叫 `robosuite.make`，只算繪需要的相機，並一律提供物體狀態                    | 原 repo `robomimic/envs/env_robosuite.py:87`、`:116`                                                                              |
+| 影像         | 上下翻正，作為 `pixels/<camera>`                                                           | 原 repo `robomimic/envs/env_robosuite.py:255`                                                                                     |
+| 本體感知     | dataset 的 state key 串接後作為 `agent_pos`                                                | 見 Datasets 一節                                                                                                                  |
+| 物體狀態     | robosuite 的 `object-state`，作為 `environment_state`                                      | 原 repo `robomimic/envs/env_robosuite.py:267`                                                                                     |
+| 成功與結束   | `_check_success()`；成功時結束 episode                                                     | 原 repo `robomimic/envs/env_robosuite.py:407`；`robomimic/scripts/generate_paper_configs.py:53`、`:123`（`terminate_on_success`） |
+| Episode 長度 | Lift、Can、Square 為 400 步；Transport、Tool Hang 為 700 步                                | 原 repo `robomimic/__init__.py:63`                                                                                                |
+| 初始狀態     | robosuite 的隨機 reset；seed 設定的是 NumPy 的全域 generator，robosuite 1.5.1 以它擺放物體 | robosuite 1.5.1 `robosuite/utils/placement_samplers.py:167`                                                                       |
+| 批次 env     | 每個 env 在 episode 結束後停止模擬，並使用 `NEXT_STEP` autoreset                           | LeRobot `envs/utils.py:241`（`freeze_after_episode_end`）、`envs/libero.py:526`                                                   |
+| Features     | 建立 config 時，從一個不算繪相機的 robosuite env 讀出                                      | 本專案：LeRobot 會以 env 的 action feature 取代載入 policy 的設定（`policies/factory.py:304`），因此大小必須正確                  |
+
+測試會以相同的 env args 建立 robomimic 自己的 `EnvRobosuite`，兩者以相同 seed reset 後，比對
+5 步的影像、本體感知、物體狀態、reward 與成功與否（`tests/test_env.py`）。比對是從各自以 seed
+reset 的狀態開始，而不是複製模擬器狀態，因為 robosuite 的控制器與視覺化標記都有複製模擬器狀態
+時帶不過去的狀態。
+
 ## 設計
 
 本專案從零開始重建每個 robomimic policy，一次建構一個元件。以下每一節說明一個元件，

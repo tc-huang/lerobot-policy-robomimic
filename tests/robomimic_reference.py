@@ -133,6 +133,36 @@ def bc_rnn_config(hdf5_type: str = "image"):
     return modify_bc_rnn_config_for_dataset(image_experiment_config(), "lift", "ph", hdf5_type)
 
 
+def robosuite_env(env_args: dict, camera_names: list[str]):
+    """Returns robomimic's own `EnvRobosuite`, built from a dataset's env args as its rollouts are.
+
+    robomimic imports `egl_probe` to pick an EGL GPU for offscreen rendering; macOS has none, so a
+    stand-in that finds no device takes its place when it is missing.
+    """
+    import sys
+    import types
+
+    from robomimic.utils.env_utils import create_env_from_metadata
+
+    if "egl_probe" not in sys.modules:
+        try:
+            import egl_probe  # noqa: F401
+        except ImportError:
+            sys.modules["egl_probe"] = types.SimpleNamespace(get_available_devices=lambda: [])
+    obs_utils.initialize_obs_utils_with_obs_specs(
+        {
+            "obs": {
+                "low_dim": list(STATE_KEYS) + ["object"],
+                "rgb": [f"{camera}_image" for camera in camera_names],
+            }
+        }
+    )
+    env_meta = dict(env_args, env_kwargs=dict(env_args["env_kwargs"], camera_names=camera_names))
+    return create_env_from_metadata(
+        env_meta=env_meta, render_offscreen=True, use_image_obs=bool(camera_names)
+    )
+
+
 def bc_transformer_template_config():
     """Returns robomimic's tuned BC-Transformer config, loaded as `robomimic/scripts/train.py:475-479` does.
 
