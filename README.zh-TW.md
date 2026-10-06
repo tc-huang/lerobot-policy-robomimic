@@ -170,25 +170,28 @@ proficient-human（PH）資料集上的 image 實驗設定。下表中除了 `ac
 都來自 `lerobot_policy_robomimic/base_config.py` 的 `RobomimicPolicyConfig`，由本專案所有
 robomimic policy 共用；它本身不是 policy type。
 
-| 設定                     | 預設值                                 | Config 欄位                                           | 來源                                                                                                                                                                             |
-| ------------------------ | -------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Observation              | 本體感知與相機；不含物體狀態           | `use_env_state`（False）                              | 原 repo `robomimic/scripts/generate_paper_configs.py:138-146`（image）；low-dim 實驗另加 `object`（`:67-72`）                                                                    |
-| 觀測歷史                 | 無（只用當下這一步）                   | `n_obs_steps`、`observation_delta_indices`            | 原 repo `robomimic/config/base_config.py:193`、`:195`；`robomimic/algo/bc.py:111` 只讀第 0 步                                                                                    |
-| Action 預測              | 每個 observation 預測一個 action       | `action_delta_indices`                                | 原 repo `robomimic/algo/bc.py:113`                                                                                                                                               |
-| MLP 隱藏層大小           | (1024, 1024)                           | `actor_layer_dims`                                    | 原 repo `robomimic/config/bc_config.py:41`、`robomimic/scripts/generate_paper_configs.py:367`                                                                                    |
-| 相機裁切                 | 訓練時隨機裁 76×76，推論時中央裁 76×76 | `crop_shape`                                          | 原 repo `robomimic/scripts/generate_paper_configs.py:163-168`                                                                                                                    |
-| 訓練以外的裁切           | 中央                                   | `random_crop_at_inference`（False）                   | 原 repo `robomimic/models/obs_core.py:579`；robomimic v0.1 則是隨機裁切（`v0.1.0:robomimic/models/base_nets.py:1066`）                                                           |
-| Spatial softmax keypoint | 32                                     | `spatial_softmax_num_kp`                              | 原 repo `robomimic/scripts/generate_paper_configs.py:157`                                                                                                                        |
-| 每支相機的特徵大小       | 64                                     | `image_feature_dim`                                   | 原 repo `robomimic/scripts/generate_paper_configs.py:152`                                                                                                                        |
-| Action head              | 5 個高斯分佈的混合                     | `use_gmm`（True）、`gmm_num_modes`（5）               | 原 repo `robomimic/scripts/generate_paper_configs.py:368`（人類示範資料集）、`robomimic/config/bc_config.py:53`                                                                  |
-| GMM 最小標準差           | 1e-4                                   | `gmm_min_std`                                         | 原 repo `robomimic/config/bc_config.py:54`                                                                                                                                       |
-| GMM 在訓練以外的雜訊     | 所有標準差設為 1e-4                    | `gmm_low_noise_eval`（True）                          | 原 repo `robomimic/config/bc_config.py:56`                                                                                                                                       |
-| 不用 GMM 時的 loss       | 只用均方誤差                           | `l2_weight`（1）、`l1_weight`（0）、`cos_weight`（0） | 原 repo `robomimic/config/bc_config.py:36-38`                                                                                                                                    |
-| 正規化                   | 無；影像只縮放到 `[0, 1]`              | `normalization_mapping`（`IDENTITY`）                 | 原 repo `robomimic/config/base_config.py:181`（observation）、`:225`（action）、`robomimic/utils/obs_utils.py:921`（影像）；LeRobot 已縮放影像（`datasets/io_utils.py:255-263`） |
-| Optimizer                | Adam                                   | `get_optimizer_preset()`                              | 原 repo `robomimic/config/bc_config.py:27`                                                                                                                                       |
-| Learning rate            | 1e-4，固定不變                         | `optimizer_lr`                                        | 原 repo `robomimic/config/bc_config.py:28`、`:30`（沒有衰減的 epoch）                                                                                                            |
-| Weight decay             | 0                                      | `optimizer_weight_decay`                              | 原 repo `robomimic/config/bc_config.py:33`                                                                                                                                       |
-| Gradient clipping        | 無                                     | `optimizer_grad_clip_norm`（0）                       | 原 repo `robomimic/config/base_config.py:239`；LeRobot 在 0 時不做 clipping（`scripts/lerobot_train.py:178`）                                                                    |
+| 設定                         | 預設值                                 | Config 欄位                                                                           | 來源                                                                                                                                                                             |
+| ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Observation                  | 本體感知與相機；不含物體狀態           | `use_env_state`（False）                                                              | 原 repo `robomimic/scripts/generate_paper_configs.py:138-146`（image）；low-dim 實驗另加 `object`（`:67-72`）                                                                    |
+| 觀測歷史                     | 無（只用當下這一步）                   | `n_obs_steps`、`observation_delta_indices`                                            | 原 repo `robomimic/config/base_config.py:193`、`:195`；`robomimic/algo/bc.py:111` 只讀第 0 步                                                                                    |
+| Action 預測                  | 每個 observation 預測一個 action       | `action_delta_indices`                                                                | 原 repo `robomimic/algo/bc.py:113`                                                                                                                                               |
+| MLP 隱藏層大小               | (1024, 1024)                           | `actor_layer_dims`                                                                    | 原 repo `robomimic/config/bc_config.py:41`、`robomimic/scripts/generate_paper_configs.py:367`                                                                                    |
+| 相機裁切                     | 訓練時隨機裁 76×76，推論時中央裁 76×76 | `crop_shape`                                                                          | 原 repo `robomimic/scripts/generate_paper_configs.py:163-168`                                                                                                                    |
+| 訓練以外的裁切               | 中央                                   | `random_crop_at_inference`（False）                                                   | 原 repo `robomimic/models/obs_core.py:579`；robomimic v0.1 則是隨機裁切（`v0.1.0:robomimic/models/base_nets.py:1066`）                                                           |
+| Spatial softmax keypoint     | 32                                     | `spatial_softmax_num_kp`                                                              | 原 repo `robomimic/scripts/generate_paper_configs.py:157`                                                                                                                        |
+| 每支相機的特徵大小           | 64                                     | `image_feature_dim`                                                                   | 原 repo `robomimic/scripts/generate_paper_configs.py:152`                                                                                                                        |
+| Action head                  | 5 個高斯分佈的混合                     | `use_gmm`（True）、`gmm_num_modes`（5）                                               | 原 repo `robomimic/scripts/generate_paper_configs.py:368`（人類示範資料集）、`robomimic/config/bc_config.py:53`                                                                  |
+| GMM 最小標準差               | 1e-4                                   | `gmm_min_std`                                                                         | 原 repo `robomimic/config/bc_config.py:54`                                                                                                                                       |
+| GMM 在訓練以外的雜訊         | 所有標準差設為 1e-4                    | `gmm_low_noise_eval`（True）                                                          | 原 repo `robomimic/config/bc_config.py:56`                                                                                                                                       |
+| Gaussian head                | 關閉；開啟時優先於 GMM head            | `use_gaussian`（False）                                                               | 原 repo `robomimic/config/bc_config.py:44`、`robomimic/algo/bc.py:45-52`                                                                                                         |
+| Gaussian 標準差              | 可學習，網路輸出 0 時為 0.1，至少 0.01 | `gaussian_fixed_std`（False）、`gaussian_init_std`（0.1）、`gaussian_min_std`（0.01） | 原 repo `robomimic/config/bc_config.py:45-47`                                                                                                                                    |
+| Gaussian 在訓練以外的 action | 平均值                                 | `gaussian_low_noise_eval`（True）                                                     | 原 repo `robomimic/config/bc_config.py:49`                                                                                                                                       |
+| Deterministic head 的 loss   | 只用均方誤差                           | `l2_weight`（1）、`l1_weight`（0）、`cos_weight`（0）                                 | 原 repo `robomimic/config/bc_config.py:36-38`                                                                                                                                    |
+| 正規化                       | 無；影像只縮放到 `[0, 1]`              | `normalization_mapping`（`IDENTITY`）                                                 | 原 repo `robomimic/config/base_config.py:181`（observation）、`:225`（action）、`robomimic/utils/obs_utils.py:921`（影像）；LeRobot 已縮放影像（`datasets/io_utils.py:255-263`） |
+| Optimizer                    | Adam                                   | `get_optimizer_preset()`                                                              | 原 repo `robomimic/config/bc_config.py:27`                                                                                                                                       |
+| Learning rate                | 1e-4，固定不變                         | `optimizer_lr`                                                                        | 原 repo `robomimic/config/bc_config.py:28`、`:30`（沒有衰減的 epoch）                                                                                                            |
+| Weight decay                 | 0                                      | `optimizer_weight_decay`                                                              | 原 repo `robomimic/config/bc_config.py:33`                                                                                                                                       |
+| Gradient clipping            | 無                                     | `optimizer_grad_clip_norm`（0）                                                       | 原 repo `robomimic/config/base_config.py:239`；LeRobot 在 0 時不做 clipping（`scripts/lerobot_train.py:178`）                                                                    |
 
 LeRobot 會把 dataset 裡所有非 action 的 feature 都交給 policy
 （`policies/factory.py:305-306`），而 robomimic 是由每個實驗列出要用的
@@ -204,6 +207,8 @@ Batch size 與訓練長度屬於 `lerobot-train`，不屬於 policy：robomimic 
 `tests/test_paper_defaults.py` 會把這些預設值和 robomimic 自己在 PH Lift image 實驗中的
 BC config 比對。設定 `use_gmm=false` 則得到 robomimic 原本的 `BC` class，論文只在
 機器產生的資料集上這樣用（`robomimic/scripts/generate_paper_configs.py:370-372`）。
+設定 `use_gaussian=true` 則得到 robomimic 的 `BC_Gaussian`，論文沒有用它；它的設定沿用
+robomimic 的預設值，由同一個測試檢查。
 
 ### 3. 相機 encoder
 
@@ -267,21 +272,26 @@ robomimic 排序後，相機與向量 observation 會交錯排列；以 image �
 
 `lerobot_policy_robomimic/mlp.py` 的 `MLP` 把編碼後的 observation 轉成特徵，
 `lerobot_policy_robomimic/action_heads.py` 的 action head 再把特徵轉成 action。兩者合起來
-對應 robomimic 的 `ActorNetwork`（原 repo `robomimic/models/policy_nets.py:26`）或
-`GMMActorNetwork`（`:397`），BC 用 `actor_layer_dims` 建立它們（`robomimic/algo/bc.py:87-92`）。
+對應 robomimic 的 `ActorNetwork`（原 repo `robomimic/models/policy_nets.py:26`）、
+`GaussianActorNetwork`（`:193`）或 `GMMActorNetwork`（`:397`），BC 用 `actor_layer_dims` 建立它們（`robomimic/algo/bc.py:87-92`）。
 
-| 部分                | 行為                                                                                | 來源                                                                                                                                      |
-| ------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| MLP                 | `actor_layer_dims` 的每個大小各一層 Linear 加 ReLU                                  | 原 repo `robomimic/models/obs_nets.py:617-623`；最後一個大小是 MLP 的輸出，同樣接 ReLU（`:623`、`robomimic/models/base_nets.py:256-258`） |
-| `DeterministicHead` | Linear 層輸出 action 維度，再接 `tanh`                                              | 原 repo `robomimic/models/obs_nets.py:627`、`:392`（`ObservationDecoder`）、`robomimic/models/policy_nets.py:107`                         |
-| 它的 loss           | `l2_weight` × 均方誤差 + `l1_weight` × smooth L1 + `cos_weight` × cosine loss       | 原 repo `robomimic/algo/bc.py:182-192`                                                                                                    |
-| 它的 cosine loss    | 前三個 action 維度（末端執行器的位移）上 1 − cosine similarity 的平均               | 原 repo `robomimic/algo/bc.py:185`、`robomimic/utils/loss_utils.py:22-23`                                                                 |
-| `GMMHead` 的輸出    | Linear 層分別輸出每個 mode 的高斯平均值、尺度，以及 mode 的 logits                  | 原 repo `robomimic/models/policy_nets.py:489-491`                                                                                         |
-| 它的平均值          | 輸出取 `tanh`                                                                       | 原 repo `robomimic/models/policy_nets.py:514`                                                                                             |
-| 它的尺度            | 輸出取 `softplus` 再加 `gmm_min_std`；開啟 `gmm_low_noise_eval` 時，訓練以外為 1e-4 | 原 repo `robomimic/models/policy_nets.py:519`、`:522`                                                                                     |
-| 它的分佈            | 先以 categorical 選 mode，再在各 action 維度上用對角高斯分佈                        | 原 repo `robomimic/models/policy_nets.py:526-535`                                                                                         |
-| 它的 loss           | 示範 action 的平均對數似然取負                                                      | 原 repo `robomimic/algo/bc.py:300`、`:322`（`BC_Gaussian`，`BC_GMM` 在 `:347` 繼承它）                                                    |
-| 它的 action         | 從分佈中抽樣                                                                        | 原 repo `robomimic/models/policy_nets.py:555`                                                                                             |
+| 部分                  | 行為                                                                                                                                                                                                    | 來源                                                                                                                                                        |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MLP                   | `actor_layer_dims` 的每個大小各一層 Linear 加 ReLU                                                                                                                                                      | 原 repo `robomimic/models/obs_nets.py:617-623`；最後一個大小是 MLP 的輸出，同樣接 ReLU（`:623`、`robomimic/models/base_nets.py:256-258`）                   |
+| `DeterministicHead`   | Linear 層輸出 action 維度，再接 `tanh`                                                                                                                                                                  | 原 repo `robomimic/models/obs_nets.py:627`、`:392`（`ObservationDecoder`）、`robomimic/models/policy_nets.py:107`                                           |
+| 它的 loss             | `l2_weight` × 均方誤差 + `l1_weight` × smooth L1 + `cos_weight` × cosine loss                                                                                                                           | 原 repo `robomimic/algo/bc.py:182-192`                                                                                                                      |
+| 它的 cosine loss      | 前三個 action 維度（末端執行器的位移）上 1 − cosine similarity 的平均                                                                                                                                   | 原 repo `robomimic/algo/bc.py:185`、`robomimic/utils/loss_utils.py:22-23`                                                                                   |
+| `GaussianHead` 的輸出 | Linear 層分別輸出單一對角高斯分佈的平均值與尺度；開啟 `gaussian_fixed_std` 時沒有尺度層                                                                                                                 | 原 repo `robomimic/models/policy_nets.py:318-319`、`:338`                                                                                                   |
+| 它的平均值            | 先限制在 [−9, 9]，再取 `tanh`                                                                                                                                                                           | 原 repo `robomimic/models/policy_nets.py:341`、`:345`；`BC_Gaussian` 沿用預設的範圍，且不用 tanh-Gaussian（`:207`、`:210`、`robomimic/algo/bc.py:263-274`） |
+| 它的尺度              | 輸出取 `softplus` 並縮放成輸出 0 時為 `gaussian_init_std`，開啟 `gaussian_fixed_std` 時就是 `gaussian_init_std`；再限制在 [`gaussian_min_std`, 7.5]；開啟 `gaussian_low_noise_eval` 時，訓練以外為 1e-4 | 原 repo `robomimic/models/policy_nets.py:280-282`、`:338`、`:350`、`:355`；`robomimic/algo/bc.py:272`                                                       |
+| 它的 loss             | 示範 action 的平均對數似然取負                                                                                                                                                                          | 原 repo `robomimic/algo/bc.py:300`、`:322`                                                                                                                  |
+| 它的 action           | 開啟 `gaussian_low_noise_eval` 時，訓練以外取平均值，其他時候抽樣                                                                                                                                       | 原 repo `robomimic/models/policy_nets.py:386-388`                                                                                                           |
+| `GMMHead` 的輸出      | Linear 層分別輸出每個 mode 的高斯平均值、尺度，以及 mode 的 logits                                                                                                                                      | 原 repo `robomimic/models/policy_nets.py:489-491`                                                                                                           |
+| 它的平均值            | 輸出取 `tanh`                                                                                                                                                                                           | 原 repo `robomimic/models/policy_nets.py:514`                                                                                                               |
+| 它的尺度              | 輸出取 `softplus` 再加 `gmm_min_std`；開啟 `gmm_low_noise_eval` 時，訓練以外為 1e-4                                                                                                                     | 原 repo `robomimic/models/policy_nets.py:519`、`:522`                                                                                                       |
+| 它的分佈              | 先以 categorical 選 mode，再在各 action 維度上用對角高斯分佈                                                                                                                                            | 原 repo `robomimic/models/policy_nets.py:526-535`                                                                                                           |
+| 它的 loss             | 示範 action 的平均對數似然取負                                                                                                                                                                          | 原 repo `robomimic/algo/bc.py:300`、`:322`（`BC_Gaussian`，`BC_GMM` 在 `:347` 繼承它）                                                                      |
+| 它的 action           | 從分佈中抽樣                                                                                                                                                                                            | 原 repo `robomimic/models/policy_nets.py:555`                                                                                                               |
 
 robomimic 把 MLP 拆成隱藏層與輸出層（`robomimic/models/obs_nets.py:619-620`），但兩者
 最後都接 ReLU，結果就是每個大小各一層 Linear 加 ReLU，`MLP` 也就這樣建立。
@@ -289,21 +299,31 @@ robomimic 把 MLP 拆成隱藏層與輸出層（`robomimic/models/obs_nets.py:61
 即使在推論時，`GMMHead` 也是依混合權重抽樣出 mode，而不是選機率最高的 mode；低雜訊只會
 把高斯分佈縮小到該 mode 的平均值附近，和 robomimic 相同。
 
+標準差固定時，robomimic 仍會建立 Gaussian 的尺度層，只是不使用它
+（`robomimic/models/policy_nets.py:318-319`、`:338`）；`GaussianHead` 則不建立（本專案）。
+
 每個 action head 各自帶有 loss 與 action 的選擇方式（本專案）。robomimic 則是依 config
 旗標，為每種網路搭配一個演算法子類別（`robomimic/algo/bc.py:46-73`）。把 head 和 MLP
-分開，之後的 recurrent 與 transformer policy 就能重用這兩種 head。
+分開，之後的 recurrent 與 transformer policy 就能重用 deterministic 與 GMM head。
+robomimic 沒有 Gaussian 的 BC-RNN 或 BC-Transformer（`robomimic/algo/bc.py:46-49`），
+因此它們的 config 不接受 `use_gaussian`。
+
+robomimic 也可以用 `exp` 取代 `softplus` 來輸出兩種分佈的標準差
+（`robomimic/config/bc_config.py:48`、`:55`）；它的預設值與論文實驗都用 `softplus`，
+`exp` 不移植。
 
 ### 6. Policy
 
 `RobomimicBCPolicy` 在 LeRobot 訓練與評估流程會呼叫的 method 中，依序串接
-observation encoder、MLP 與 action head，行為依照 robomimic 的 `BC` 與 `BC_GMM` class
-（原 repo `robomimic/algo/bc.py:78`、`:347`）。測試會把相同權重載入 robomimic 的演算法，
-依 §4 的方式重新排列 MLP 第一層的輸入欄位，並比對兩種 head 的 loss 與 action
+observation encoder、MLP 與 action head，行為依照 robomimic 的 `BC`、`BC_Gaussian` 與
+`BC_GMM` class（原 repo `robomimic/algo/bc.py:78`、`:254`、`:347`）。測試會把相同權重載入
+robomimic 的演算法，依 §4 的方式重新排列 MLP 第一層的輸入欄位，並比對三種 head 的 loss
+與 action
 （`tests/test_policy.py`）。
 
 | Method                 | 行為                                                     | 來源                                                                                                                                                                                                                  |
 | ---------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `forward`              | action head 的 loss 與它記錄的數值                       | 原 repo `robomimic/algo/bc.py:182-192`（`BC`）、`:300`、`:322`（`BC_GMM`）                                                                                                                                            |
+| `forward`              | action head 的 loss 與它記錄的數值                       | 原 repo `robomimic/algo/bc.py:182-192`（`BC`）、`:300`、`:322`（`BC_Gaussian`、`BC_GMM`）                                                                                                                             |
 | `select_action`        | action head 對當下 observation 給出的 action，不計算梯度 | 原 repo `robomimic/algo/bc.py:239-251`                                                                                                                                                                                |
 | `predict_action_chunk` | 同一個 action，作為長度 1 的 chunk                       | 本專案：LeRobot 預期 `(B, chunk_size, action_dim)`（Adding a Policy 指南）；BC 只預測一個 action                                                                                                                      |
 | `__init__`             | 接收 `**kwargs` 並忽略                                   | LeRobot：`make_policy` 還會傳入 `dataset_stats` 與 `dataset_meta`（`policies/factory.py:323`、`:326`）；內建 policy 都接收 `**kwargs`（`policies/diffusion/modeling_diffusion.py:65-69`）                             |

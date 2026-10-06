@@ -22,13 +22,21 @@ class RobomimicPolicyConfig(PreTrainedConfig):
             training, as in robomimic v0.1, whose checkpoints were evaluated that way.
         spatial_softmax_num_kp: Number of keypoints each camera's spatial softmax extracts.
         image_feature_dim: Size of the feature each camera is projected to.
+        use_gaussian: Whether the policy outputs one diagonal Gaussian over actions instead of
+            one action; it takes precedence over `use_gmm`, as in robomimic.
+        gaussian_fixed_std: Whether the Gaussian's standard deviation stays at `gaussian_init_std`
+            instead of being learned.
+        gaussian_init_std: The Gaussian's standard deviation when the network outputs zero.
+        gaussian_min_std: Lower bound of the Gaussian's standard deviation in training.
+        gaussian_low_noise_eval: Whether the Gaussian's mean is the action outside training.
         use_gmm: Whether the policy outputs a Gaussian mixture over actions instead of one action.
         gmm_num_modes: Number of Gaussians in the mixture.
         gmm_min_std: Lower bound added to every Gaussian's standard deviation in training.
         gmm_low_noise_eval: Whether the standard deviations shrink to 1e-4 outside training.
-        l2_weight: Without GMM, weight of the mean squared error on the action.
-        l1_weight: Without GMM, weight of the smooth L1 error on the action.
-        cos_weight: Without GMM, weight of the cosine loss on the first three action dimensions.
+        l2_weight: Without a distribution, weight of the mean squared error on the action.
+        l1_weight: Without a distribution, weight of the smooth L1 error on the action.
+        cos_weight: Without a distribution, weight of the cosine loss on the first three action
+            dimensions.
         optimizer_lr: Adam learning rate, kept constant.
         optimizer_weight_decay: Adam weight decay.
         optimizer_grad_clip_norm: Gradient norm limit; 0 disables clipping.
@@ -49,6 +57,12 @@ class RobomimicPolicyConfig(PreTrainedConfig):
     random_crop_at_inference: bool = False
     spatial_softmax_num_kp: int = 32
     image_feature_dim: int = 64
+
+    use_gaussian: bool = False
+    gaussian_fixed_std: bool = False
+    gaussian_init_std: float = 0.1
+    gaussian_min_std: float = 0.01
+    gaussian_low_noise_eval: bool = True
 
     use_gmm: bool = True
     gmm_num_modes: int = 5

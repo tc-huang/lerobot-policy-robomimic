@@ -46,6 +46,8 @@ class RobomimicBCTransformerConfig(RobomimicPolicyConfig):
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        if self.use_gaussian:
+            raise ValueError("robomimic has no Gaussian BC-Transformer; use the GMM or deterministic head.")
         if self.transformer_embed_dim % self.transformer_num_heads != 0:
             raise ValueError(
                 f"transformer_embed_dim {self.transformer_embed_dim} must be divisible by "

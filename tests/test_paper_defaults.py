@@ -32,6 +32,18 @@ def test_bc_defaults_match_robomimic_image_experiment():
     assert list(paper.algo.optim_params.policy.learning_rate.epoch_schedule) == []
 
 
+def test_bc_gaussian_defaults_match_robomimic():
+    ours = RobomimicBCConfig(device="cpu")
+    gaussian = robomimic_reference.bc_config().algo.gaussian
+
+    assert ours.use_gaussian == gaussian.enabled
+    assert ours.gaussian_fixed_std == gaussian.fixed_std
+    assert ours.gaussian_init_std == gaussian.init_std
+    assert ours.gaussian_min_std == gaussian.min_std
+    assert ours.gaussian_low_noise_eval == gaussian.low_noise_eval
+    assert gaussian.std_activation == "softplus"
+
+
 def test_bc_rnn_defaults_match_robomimic_image_experiment():
     ours = RobomimicBCRNNConfig(device="cpu")
     paper = robomimic_reference.bc_rnn_config()

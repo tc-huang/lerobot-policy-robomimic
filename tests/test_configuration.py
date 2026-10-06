@@ -84,6 +84,12 @@ def test_bc_transformer_uses_adamw_with_a_linear_decay():
     )
 
 
+@pytest.mark.parametrize("config_class", [RobomimicBCRNNConfig, RobomimicBCTransformerConfig])
+def test_only_bc_has_a_gaussian_head(config_class):
+    with pytest.raises(ValueError, match="no Gaussian"):
+        make_config(config_class, use_gaussian=True)
+
+
 def test_bc_reads_single_steps():
     config = make_config(RobomimicBCConfig)
 

@@ -25,6 +25,11 @@ class RobomimicBCRNNConfig(RobomimicPolicyConfig):
     rnn_num_layers: int = 2
     rnn_horizon: int = 10
 
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.use_gaussian:
+            raise ValueError("robomimic has no Gaussian BC-RNN; use the GMM or deterministic head.")
+
     @property
     def observation_delta_indices(self) -> list[int]:
         return list(range(self.rnn_horizon))

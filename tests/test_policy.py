@@ -79,6 +79,48 @@ def test_gmm_actions_match_robomimic_bc_gmm():
     torch.testing.assert_close(ours, theirs)
 
 
+def gaussian_pair(**gaussian):
+    torch.manual_seed(0)
+    reference = robomimic_reference.make_algo(
+        robomimic_reference.bc_gaussian_config(**gaussian),
+        robomimic_reference.image_experiment_obs_shapes(),
+        action_dim=7,
+    )
+    fields = {f"gaussian_{name}": value for name, value in gaussian.items()}
+    policy = make_policy(use_gaussian=True, **fields)
+    robomimic_reference.load_policy(policy, reference.nets["policy"])
+    return policy, reference
+
+
+@pytest.mark.parametrize("fixed_std", [False, True])
+def test_gaussian_loss_matches_robomimic_bc_gaussian(fixed_std):
+    policy, reference = gaussian_pair(fixed_std=fixed_std)
+    policy.eval()
+    policy.action_head.train()
+    reference.set_eval()
+    reference.nets["policy"].training = True
+
+    (loss, logs), reference_losses = losses(policy, reference, torch.rand(4, 7) * 2 - 1)
+
+    torch.testing.assert_close(loss, reference_losses["action_loss"])
+    assert logs["log_probs"] == pytest.approx(reference_losses["log_probs"].item(), rel=1e-5)
+
+
+@pytest.mark.parametrize("low_noise_eval", [True, False])
+def test_gaussian_actions_match_robomimic_bc_gaussian(low_noise_eval):
+    policy, reference = gaussian_pair(low_noise_eval=low_noise_eval)
+    policy.eval()
+    reference.set_eval()
+    obs, batch = robomimic_reference.random_image_observations(4)
+
+    torch.manual_seed(1)
+    ours = policy.select_action(batch)
+    torch.manual_seed(1)
+    theirs = reference.get_action(obs)
+
+    torch.testing.assert_close(ours, theirs)
+
+
 def test_image_policy_ignores_env_state():
     features = robomimic_reference.image_experiment_features()
     features[OBS_ENV_STATE] = PolicyFeature(type=FeatureType.ENV, shape=(10,))

@@ -1,6 +1,7 @@
 """Heads that turn features into actions, each with its own training loss."""
 
 import abc
+import math
 
 import torch
 from torch import Tensor, distributions, nn
@@ -49,6 +50,60 @@ class DeterministicHead(ActionHead):
         return self(features)
 
 
+class GaussianHead(ActionHead):
+    """A diagonal Gaussian over actions, trained by maximum likelihood.
+
+    Means are clamped to [-9, 9], then bounded by tanh. Scales are softplus outputs scaled to
+    `init_std` at zero, or `init_std` itself with `fixed_std`, clamped to [`min_std`, 7.5].
+    Outside training with `low_noise_eval`, every scale is `LOW_NOISE_SCALE` and the action is
+    the mean.
+    """
+
+    LOW_NOISE_SCALE = 1e-4
+    MEAN_LIMIT = 9.0
+    MAX_STD = 7.5
+
+    def __init__(
+        self,
+        input_dim: int,
+        action_dim: int,
+        fixed_std: bool,
+        init_std: float,
+        min_std: float,
+        low_noise_eval: bool,
+    ):
+        super().__init__()
+        self.init_std = init_std
+        self.min_std = min_std
+        self.low_noise_eval = low_noise_eval
+        self.mean = nn.Linear(input_dim, action_dim)
+        self.scale = None if fixed_std else nn.Linear(input_dim, action_dim)
+
+    def forward(self, features: Tensor) -> distributions.Independent:
+        means = torch.tanh(self.mean(features).clamp(-self.MEAN_LIMIT, self.MEAN_LIMIT))
+        if self.low_noise_eval and not self.training:
+            scales = torch.full_like(means, self.LOW_NOISE_SCALE)
+        else:
+            if self.scale is None:
+                scales = torch.full_like(means, self.init_std)
+            else:
+                scales = softplus(self.scale(features)) * (self.init_std / math.log(2))
+            scales = scales.clamp(self.min_std, self.MAX_STD)
+        return distributions.Independent(distributions.Normal(means, scales), 1)
+
+    def loss(self, features: Tensor, actions: Tensor) -> tuple[Tensor, dict[str, float]]:
+        """Returns the negative log-likelihood of the actions."""
+        log_probs = self(features).log_prob(actions).mean()
+        return -log_probs, {"log_probs": log_probs.item()}
+
+    def act(self, features: Tensor) -> Tensor:
+        """Returns the mean outside training with `low_noise_eval`, and a sample otherwise."""
+        distribution = self(features)
+        if self.low_noise_eval and not self.training:
+            return distribution.mean
+        return distribution.sample()
+
+
 class GMMHead(ActionHead):
     """A mixture of diagonal Gaussians over actions, trained by maximum likelihood.
 
@@ -89,8 +144,17 @@ class GMMHead(ActionHead):
 
 
 def make_action_head(config: RobomimicPolicyConfig, input_dim: int) -> ActionHead:
-    """Returns the GMM head or the deterministic head that `config` asks for."""
+    """Returns the Gaussian, GMM, or deterministic head that `config` asks for, in that precedence."""
     action_dim = config.action_feature.shape[0]
+    if config.use_gaussian:
+        return GaussianHead(
+            input_dim,
+            action_dim,
+            config.gaussian_fixed_std,
+            config.gaussian_init_std,
+            config.gaussian_min_std,
+            config.gaussian_low_noise_eval,
+        )
     if config.use_gmm:
         return GMMHead(
             input_dim, action_dim, config.gmm_num_modes, config.gmm_min_std, config.gmm_low_noise_eval

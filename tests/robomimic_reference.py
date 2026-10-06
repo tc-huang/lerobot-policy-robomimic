@@ -125,6 +125,20 @@ def bc_config(gmm: bool = True, **loss_weights: float):
     return config
 
 
+def bc_gaussian_config(**gaussian):
+    """Returns `bc_config` with robomimic's Gaussian head, `BC_Gaussian`, and `gaussian` overrides.
+
+    The paper uses no Gaussian head, so its settings keep robomimic's defaults
+    (`robomimic/config/bc_config.py:44-49`) unless overridden.
+    """
+    config = bc_config(gmm=False)
+    with config.algo.values_unlocked():
+        config.algo.gaussian.enabled = True
+        for name, value in gaussian.items():
+            config.algo.gaussian[name] = value
+    return config
+
+
 def bc_rnn_config(hdf5_type: str = "image"):
     """Returns robomimic's config for BC-RNN in the experiments on proficient-human Lift data.
 
@@ -257,12 +271,10 @@ def load_policy(policy, reference) -> None:
         weight = theirs.weight if reordered else lerobot_feature_order(theirs.weight)
         ours.load_state_dict({"weight": weight, "bias": theirs.bias})
         reordered = True
-    decoder = reference.nets["decoder"].nets
-    if "action" in decoder:
-        policy.action_head.linear.load_state_dict(decoder["action"].state_dict())
-    else:
-        for name in ("mean", "scale", "logits"):
-            getattr(policy.action_head, name).load_state_dict(decoder[name].state_dict())
+    for name, layer in reference.nets["decoder"].nets.items():
+        ours = getattr(policy.action_head, "linear" if name == "action" else name)
+        if ours is not None:
+            ours.load_state_dict(layer.state_dict())
 
 
 def load_transformer(transformer, reference) -> None:
