@@ -498,3 +498,36 @@ Attention uses PyTorch's `scaled_dot_product_attention` with `is_causal=True`
 (this port), which computes the same masked softmax as robomimic's explicit
 mask (`robomimic/models/transformers.py:143`, `:184`) within floating-point
 tolerance, without storing the mask.
+
+### 15. Policy
+
+`RobomimicBCTransformerPolicy` encodes the observations of its context, runs
+the transformer of §14, and applies the action head of §5 to the last step,
+following robomimic's `BC_Transformer` and `BC_Transformer_GMM` classes (Repo
+`robomimic/algo/bc.py:677`, `:794`). Tests load the same weights into
+robomimic's algorithms and compare the losses of both heads, the GMM at the
+last step, and 13 steps of actions on padded observation windows
+(`tests/test_policy_bc_transformer.py`).
+
+| Part                   | Behavior                                                                                        | Source                                                                                                                   |
+| ---------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Camera features        | No ReLU after each camera's encoder, unlike BC and BC-RNN                                       | Repo `robomimic/models/obs_nets.py:991` (`feature_activation=None`)                                                      |
+| `forward`              | The action head's loss for the action of the last step of each context                          | Repo `robomimic/algo/bc.py:734`, `:766`                                                                                  |
+| `select_action`        | Keeps the last `transformer_context_length` observations; an episode's first one fills them all | Repo `robomimic/envs/wrappers.py:97`, `:130-131` (`FrameStackWrapper`, set up at `robomimic/utils/env_utils.py:342-343`) |
+| Action                 | The action head's action at the last step                                                       | Repo `robomimic/algo/bc.py:769`, `:788`                                                                                  |
+| `reset`                | Forgets the stored observations                                                                 | Repo `robomimic/envs/wrappers.py:152-165`, which rebuilds the history with `:119-131`                                    |
+| `predict_action_chunk` | Not supported                                                                                   | This port: like BC-RNN (§10), each action depends on the observations kept by `select_action`                            |
+
+`ObservationEncoder.from_config` takes `camera_activation`, which only this
+policy turns off, so the three policies share one encoder.
+
+robomimic computes BC-Transformer's GMM loss with training scales even outside
+training (Repo `robomimic/algo/bc.py:836`), while BC and BC-RNN use the
+low-noise scales there; `GMMHead` follows the latter for all three. The two
+agree on every training step and differ only for losses computed in
+evaluation mode.
+
+robomimic samples an action for every step of the context and keeps the last
+(`robomimic/algo/bc.py:788`); this port samples only the last step, which has
+the same distribution but draws different random numbers, so tests compare the
+distribution rather than samples.

@@ -197,10 +197,10 @@ def make_algo(config, obs_shapes: dict[str, list[int]], action_dim: int) -> BC:
 
 
 def load_policy(policy, reference) -> None:
-    """Copies the weights of BC's or BC-RNN's actor network into our policy.
+    """Copies the weights of BC's, BC-RNN's, or BC-Transformer's actor network into our policy.
 
-    The input columns of the first layer after the encoder, the LSTM's or the MLP's, are
-    reordered from robomimic's sorted keys.
+    The input columns of the first layer after the encoder, the LSTM's, the transformer's
+    input projection, or the MLP's, are reordered from robomimic's sorted keys.
     """
     for camera in CAMERAS:
         load_visual_core(
@@ -208,6 +208,12 @@ def load_policy(policy, reference) -> None:
             reference.nets["encoder"].nets["obs"].obs_nets[f"{camera}_image"],
         )
     reordered = False
+    if "transformer" in reference.nets:
+        load_transformer(policy.transformer, reference)
+        policy.transformer.input_projection.weight.data.copy_(
+            lerobot_feature_order(reference.nets["embed_encoder"].weight)
+        )
+        reordered = True
     if "rnn" in reference.nets:
         lstm = dict(reference.nets["rnn"].nets.state_dict())
         lstm["weight_ih_l0"] = lerobot_feature_order(lstm["weight_ih_l0"])
@@ -215,7 +221,8 @@ def load_policy(policy, reference) -> None:
         reordered = True
     reference_mlp = reference.nets["mlp"]._model if "mlp" in reference.nets else []
     reference_linears = [layer for layer in reference_mlp if isinstance(layer, torch.nn.Linear)]
-    ours_linears = [layer for layer in policy.mlp.layers if isinstance(layer, torch.nn.Linear)]
+    ours_mlp = policy.mlp.layers if hasattr(policy, "mlp") else []
+    ours_linears = [layer for layer in ours_mlp if isinstance(layer, torch.nn.Linear)]
     for ours, theirs in zip(ours_linears, reference_linears, strict=True):
         weight = theirs.weight if reordered else lerobot_feature_order(theirs.weight)
         ours.load_state_dict({"weight": weight, "bias": theirs.bias})

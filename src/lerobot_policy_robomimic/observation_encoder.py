@@ -14,8 +14,8 @@ from .vision import ImageEncoder, RandomCrop
 class ObservationEncoder(nn.Module):
     """Concatenates vector observations as they are and camera features from `ImageEncoder`.
 
-    Features follow the order of `features`. Each camera is cropped, encoded, and passed
-    through a ReLU.
+    Features follow the order of `features`. Each camera is cropped, encoded, and, with
+    `camera_activation`, passed through a ReLU.
     """
 
     def __init__(
@@ -25,6 +25,7 @@ class ObservationEncoder(nn.Module):
         num_kp: int,
         image_feature_dim: int,
         random_crop_at_inference: bool = False,
+        camera_activation: bool = True,
     ):
         super().__init__()
         self.keys = list(features)
@@ -41,7 +42,7 @@ class ObservationEncoder(nn.Module):
                             else nn.Identity()
                         ),
                         encoder=ImageEncoder(height, width, num_kp, image_feature_dim),
-                        activation=nn.ReLU(),
+                        activation=nn.ReLU() if camera_activation else nn.Identity(),
                     )
                 )
                 self.output_dim += image_feature_dim
@@ -49,7 +50,9 @@ class ObservationEncoder(nn.Module):
                 self.output_dim += feature.shape[0]
 
     @classmethod
-    def from_config(cls, config: RobomimicPolicyConfig) -> "ObservationEncoder":
+    def from_config(
+        cls, config: RobomimicPolicyConfig, camera_activation: bool = True
+    ) -> "ObservationEncoder":
         """Builds the encoder for the observations `config` reads."""
         return cls(
             config.observation_features,
@@ -57,6 +60,7 @@ class ObservationEncoder(nn.Module):
             config.spatial_softmax_num_kp,
             config.image_feature_dim,
             config.random_crop_at_inference,
+            camera_activation,
         )
 
     @staticmethod

@@ -446,3 +446,30 @@ sinusoidal 或 `nn.Embedding` 位置編碼，以及 GEGLU 的選項，在 templa
 attention 使用 PyTorch 的 `scaled_dot_product_attention` 並設定 `is_causal=True`（本專案），
 它和 robomimic 明確寫出的遮罩（`robomimic/models/transformers.py:143`、`:184`）計算相同的
 masked softmax，差異在浮點誤差範圍內，而且不需要儲存遮罩。
+
+### 15. Policy
+
+`RobomimicBCTransformerPolicy` 編碼 context 中的 observation，執行 §14 的 transformer，並在
+最後一步套用 §5 的 action head，行為依照 robomimic 的 `BC_Transformer` 與
+`BC_Transformer_GMM` class（原 repo `robomimic/algo/bc.py:677`、`:794`）。測試會把相同權重
+載入 robomimic 的演算法，比對兩種 head 的 loss、最後一步的 GMM，以及在補齊的
+observation 視窗上連續 13 步的 action（`tests/test_policy_bc_transformer.py`）。
+
+| 部分                   | 行為                                                                                          | 來源                                                                                                                       |
+| ---------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 相機特徵               | 每支相機的 encoder 之後不接 ReLU，和 BC、BC-RNN 不同                                          | 原 repo `robomimic/models/obs_nets.py:991`（`feature_activation=None`）                                                    |
+| `forward`              | 每段 context 最後一步 action 的 action head loss                                              | 原 repo `robomimic/algo/bc.py:734`、`:766`                                                                                 |
+| `select_action`        | 保留最近 `transformer_context_length` 個 observation；episode 的第一個 observation 會填滿全部 | 原 repo `robomimic/envs/wrappers.py:97`、`:130-131`（`FrameStackWrapper`，於 `robomimic/utils/env_utils.py:342-343` 套用） |
+| Action                 | action head 在最後一步給出的 action                                                           | 原 repo `robomimic/algo/bc.py:769`、`:788`                                                                                 |
+| `reset`                | 清空保存的 observation                                                                        | 原 repo `robomimic/envs/wrappers.py:152-165`，以 `:119-131` 重建記錄                                                       |
+| `predict_action_chunk` | 不支援                                                                                        | 本專案：和 BC-RNN（§10）一樣，每個 action 都取決於 `select_action` 保存的 observation                                      |
+
+`ObservationEncoder.from_config` 接受 `camera_activation` 參數，只有這個 policy 會關閉它，
+因此三個 policy 共用同一個 encoder。
+
+robomimic 在計算 BC-Transformer 的 GMM loss 時，即使不在訓練模式也使用訓練時的尺度（原 repo
+`robomimic/algo/bc.py:836`），而 BC 與 BC-RNN 在此情況下使用低雜訊的尺度；`GMMHead` 對三者
+都採用後者。兩者在每個訓練步都相同，只有在評估模式下計算 loss 時才有差異。
+
+robomimic 會為 context 中每一步都抽樣 action，再取最後一步（`robomimic/algo/bc.py:788`）；
+本專案只抽樣最後一步，分佈相同但使用的亂數不同，因此測試比對的是分佈而不是抽樣結果。
