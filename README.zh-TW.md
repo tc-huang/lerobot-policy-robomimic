@@ -51,6 +51,10 @@ robomimic 在 image 與 low-dim 實驗中對所有演算法都使用相同設定
 `robomimic/scripts/generate_paper_configs.py:61-62`、`:131-132`；`:739-746` 只依資料
 類型選擇設定）。它的 low-dim 實驗還需要 `--policy.rnn_hidden_dim=400`（§8）。
 
+若要訓練 BC-Transformer，使用 `--policy.type=robomimic_bc_transformer`。它調好參數的
+template 是在 low-dim 資料上以 `--batch_size=100 --steps=200000` 訓練（§13）；AdamW 與
+`robomimic_linear` learning rate schedule 由 policy 自行設定。
+
 若要使用 robomimic model zoo 的 BC-RNN checkpoint（原 repo `docs/model_zoo/robomimic_v0.1.md`），
 先下載，再轉換成 LeRobot 的 policy 目錄（§12）：
 
@@ -473,3 +477,14 @@ robomimic 在計算 BC-Transformer 的 GMM loss 時，即使不在訓練模式�
 
 robomimic 會為 context 中每一步都抽樣 action，再取最後一步（`robomimic/algo/bc.py:788`）；
 本專案只抽樣最後一步，分佈相同但使用的亂數不同，因此測試比對的是分佈而不是抽樣結果。
+
+### 16. Processor
+
+`make_robomimic_bc_transformer_pre_post_processors` 回傳和 BC 相同的預設 pipeline（§7），
+不會正規化任何 feature（`tests/test_processor.py`）。
+
+在轉換好的 Lift image dataset 上，用 `train` mask 跑 20 步的 `lerobot-train`，可以用 AdamW 與
+`robomimic_linear` schedule 訓練這個 41M 參數的 policy、存下 checkpoint（其訓練設定保留了這個
+scheduler type），並連同 processor 讀回後執行 12 步 `select_action`。把 epoch 縮短為 2 步、
+衰減期設為 5 個 epoch 時，記錄到的 learning rate（LeRobot 對每 5 步記錄區間取的平均）依序為
+7.8e-5、3.2e-5，之後為 1.0e-5，和 schedule 的預期相同。

@@ -54,6 +54,11 @@ experiments (Repo `robomimic/scripts/generate_paper_configs.py:61-62`,
 `:131-132`, chosen by data type alone at `:739-746`). Its low-dim experiments
 also need `--policy.rnn_hidden_dim=400` (§8).
 
+For BC-Transformer, use `--policy.type=robomimic_bc_transformer`. Its tuned
+template trains on low-dim data with `--batch_size=100 --steps=200000` (§13);
+the policy sets AdamW and the `robomimic_linear` learning rate schedule
+itself.
+
 To run a BC-RNN checkpoint from robomimic's model zoo (Repo
 `docs/model_zoo/robomimic_v0.1.md`), download it and convert it into a
 LeRobot policy directory (§12):
@@ -531,3 +536,18 @@ robomimic samples an action for every step of the context and keeps the last
 (`robomimic/algo/bc.py:788`); this port samples only the last step, which has
 the same distribution but draws different random numbers, so tests compare the
 distribution rather than samples.
+
+### 16. Processor
+
+`make_robomimic_bc_transformer_pre_post_processors` returns the same default
+pipelines as BC (§7), which leave every feature unnormalized
+(`tests/test_processor.py`).
+
+A 20-step `lerobot-train` run on the `train` mask of the converted Lift image
+dataset trains the 41M-parameter policy with AdamW and the
+`robomimic_linear` schedule, saves a checkpoint whose training config keeps
+that scheduler type, and runs 12 steps of `select_action` after loading it
+back with its processors. With the epoch shortened to 2 steps and the decay
+to 5 epochs, the logged learning rate, LeRobot's average over each 5-step
+logging window, reads 7.8e-5, 3.2e-5, and then 1.0e-5, as the schedule
+predicts.
