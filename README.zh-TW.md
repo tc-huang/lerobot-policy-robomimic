@@ -72,3 +72,30 @@ Batch size 與訓練長度屬於 `lerobot-train`，不屬於 policy：robomimic 
 robomimic 論文在人類示範資料集上跑 BC 時使用 GMM action head
 （`robomimic/scripts/generate_paper_configs.py:368`）。本 policy 先從 deterministic
 head 開始，也就是 robomimic 的 `BC` class。
+
+### 3. 相機 encoder
+
+`lerobot_policy_robomimic/vision.py` 是 robomimic image 實驗所用的相機 encoder，對應
+robomimic 的 `VisualCore`（原 repo `robomimic/scripts/generate_paper_configs.py:151-160`）。
+測試會用相同的權重和輸入，把每個部分和 robomimic 自己的模組比對
+（`tests/test_vision.py`）。
+
+| 部分                 | 行為                                                                     | 本專案           | 來源                                                                                                                                         |
+| -------------------- | ------------------------------------------------------------------------ | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 裁切                 | 訓練時隨機裁切，其他時候中央裁切                                         | `RandomCrop`     | 原 repo `robomimic/models/obs_core.py:489`（`CropRandomizer`）、`:579`（評估時中央裁切）                                                     |
+| 隨機裁切的位移       | `floor(rand × (size − crop))`，84 裁 76 時為 0 到 7；最後一個位移永遠抽不到 | `RandomCrop`   | 原 repo `robomimic/utils/obs_utils.py:730`                                                                                                   |
+| 中央裁切的位移       | `floor((size − crop) / 2)`，84 裁 76 時為 4                              | `RandomCrop`     | 原 repo `robomimic/utils/obs_utils.py:278`                                                                                                   |
+| Backbone             | 去掉 average pool 與分類層的 ResNet-18，從頭訓練                         | `ImageEncoder`   | 原 repo `robomimic/models/base_nets.py:536`（`ResNet18Conv`）；`robomimic/scripts/generate_paper_configs.py:154`（`pretrained = False`）     |
+| Spatial softmax      | 1×1 卷積產生 32 個 keypoint，在位置上做 softmax，取 `[-1, 1]` 網格上的期望 `(x, y)` | `SpatialSoftmax` | 原 repo `robomimic/models/base_nets.py:1143`、`:1162`、`:1216`；temperature 固定為 1 且不加噪聲（`robomimic/scripts/generate_paper_configs.py:158-160`） |
+| 投影                 | Linear 層，把 32 × 2 個 keypoint 座標投影成 64 維特徵                    | `ImageEncoder`   | 原 repo `robomimic/models/obs_core.py:138`                                                                                                   |
+
+robomimic 會平均多個裁切的特徵（`robomimic/models/obs_core.py:589-598`）；論文實驗每張
+影像只裁一次（`robomimic/scripts/generate_paper_configs.py:168`），平均後就是該特徵本身，
+因此 `RandomCrop` 只取一個裁切。
+
+robomimic 把 spatial softmax 的網格與 temperature 存在 checkpoint 裡
+（`robomimic/models/base_nets.py:1159`、`:1167`）。本專案中它們是依特徵圖大小重建的
+固定值，因此不放進 state dict。
+
+robomimic 支援、但論文實驗沒有用到的選項不移植：ImageNet 預訓練權重、coordinate
+convolution、裁切的位置編碼，以及可學習或加噪聲的 spatial softmax。

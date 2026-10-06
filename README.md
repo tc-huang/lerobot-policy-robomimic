@@ -76,3 +76,33 @@ batch size 100 for 2000 epochs of 100 steps (200K steps) on low-dim data
 robomimic's paper runs BC with a GMM action head on human datasets
 (`robomimic/scripts/generate_paper_configs.py:368`). This policy starts with
 the deterministic head, robomimic's `BC` class.
+
+### 3. Camera encoder
+
+`lerobot_policy_robomimic/vision.py` holds the camera encoder used by
+robomimic's image experiments, robomimic's `VisualCore`
+(Repo `robomimic/scripts/generate_paper_configs.py:151-160`). Tests compare
+each part with robomimic's own module on the same weights and inputs
+(`tests/test_vision.py`).
+
+| Part                 | Behavior                                                                                   | This port      | Source                                                                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------ | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Crop                 | Random crop in training, center crop otherwise                                             | `RandomCrop`   | Repo `robomimic/models/obs_core.py:489` (`CropRandomizer`), `:579` (center crop at evaluation)                                              |
+| Random crop offsets  | `floor(rand × (size − crop))`, so 0 to 7 for 76 out of 84; the last offset is never drawn | `RandomCrop`   | Repo `robomimic/utils/obs_utils.py:730`                                                                                                     |
+| Center crop offset   | `floor((size − crop) / 2)`, so 4 for 76 out of 84                                          | `RandomCrop`   | Repo `robomimic/utils/obs_utils.py:278`                                                                                                     |
+| Backbone             | ResNet-18 without its average pool and classifier, trained from scratch                    | `ImageEncoder` | Repo `robomimic/models/base_nets.py:536` (`ResNet18Conv`); `robomimic/scripts/generate_paper_configs.py:154` (`pretrained = False`)        |
+| Spatial softmax      | 1×1 convolution to 32 keypoints, softmax over positions, expected `(x, y)` on a `[-1, 1]` grid | `SpatialSoftmax` | Repo `robomimic/models/base_nets.py:1143`, `:1162`, `:1216`; temperature fixed at 1 without noise (`robomimic/scripts/generate_paper_configs.py:158-160`) |
+| Projection           | Linear layer from 32 × 2 keypoint coordinates to 64 features                               | `ImageEncoder` | Repo `robomimic/models/obs_core.py:138`                                                                                                     |
+
+robomimic averages the features of several crops (`robomimic/models/obs_core.py:589-598`);
+with one crop per image, as in the paper experiments
+(`robomimic/scripts/generate_paper_configs.py:168`), the average is the
+feature itself, so `RandomCrop` takes exactly one.
+
+robomimic stores the spatial softmax grid and temperature in the checkpoint
+(`robomimic/models/base_nets.py:1159`, `:1167`). Here they are fixed values
+rebuilt from the feature map size, so they are left out of the state dict.
+
+Options that robomimic supports but its paper experiments do not use are not
+ported: ImageNet-pretrained weights, coordinate convolution, crop position
+encoding, and a learnable or noisy spatial softmax.

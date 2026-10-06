@@ -58,6 +58,7 @@ override-dependencies = ["opencv-python; sys_platform == 'never'"]
 
 [dependency-groups]
 dev = [
+    "matplotlib>=3.10.0,<4.0.0",
     "pytest>=8.1.0,<10.0.0",
     "ruff>=0.16.0,<0.17.0",
 ]
