@@ -84,7 +84,9 @@ def test_convert_image_dataset(tmp_path):
             assert item["task"] == "lift the cube"
             torch.testing.assert_close(item[OBS_STATE], torch.from_numpy(state[t]).float())
             torch.testing.assert_close(item[ACTION], torch.from_numpy(demo["actions"][t]).float())
-            torch.testing.assert_close(item[OBS_ENV_STATE], torch.from_numpy(demo["obs"]["object"][t]).float())
+            torch.testing.assert_close(
+                item[OBS_ENV_STATE], torch.from_numpy(demo["obs"]["object"][t]).float()
+            )
             for camera in ("agentview", "robot0_eye_in_hand"):
                 pixels = (item[f"{OBS_IMAGES}.{camera}"] * 255).round().to(torch.uint8).permute(1, 2, 0)
                 np.testing.assert_array_equal(pixels.numpy(), demo["obs"][f"{camera}_image"][t])

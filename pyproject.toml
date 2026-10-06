@@ -19,6 +19,39 @@ sim = ["robosuite==1.5.1", "mujoco==3.2.7"]
 requires = ["uv_build>=0.12.5,<0.13.0"]
 build-backend = "uv_build"
 
+# The tool settings below are adapted from LeRobot v0.6.1 pyproject.toml.
+
+[tool.ruff]
+target-version = "py312"
+line-length = 110
+extend-exclude = ["third_party"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "T20", "N", "UP", "SIM"]
+ignore = [
+    "E501", # Line too long
+    "T201", # Print statement found
+    "T203", # Pprint statement found
+    "B008", # Perform function call in argument defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "F403", "E402"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+known-first-party = ["lerobot_policy_robomimic"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+
 [tool.uv]
 # robosuite depends on opencv-python, which clobbers LeRobot's opencv-python-headless.
 override-dependencies = ["opencv-python; sys_platform == 'never'"]
@@ -26,6 +59,7 @@ override-dependencies = ["opencv-python; sys_platform == 'never'"]
 [dependency-groups]
 dev = [
     "pytest>=8.1.0,<10.0.0",
+    "ruff>=0.16.0,<0.17.0",
 ]
 
 [tool.pytest.ini_options]

@@ -119,7 +119,9 @@ def convert(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--hdf5", type=Path, required=True, help="robomimic hdf5 file with observations")
     parser.add_argument("--repo-id", required=True, help="LeRobotDataset repo id, e.g. user/name")
     parser.add_argument("--task", required=True, help="task string stored with every frame")
@@ -133,7 +135,9 @@ def main() -> None:
     )
     args = parser.parse_args()
     dataset = convert(args.hdf5, args.repo_id, args.task, args.root, args.state_keys, args.video)
-    print(f"Wrote {dataset.meta.total_episodes} episodes, {dataset.meta.total_frames} frames to {dataset.root}")
+    print(
+        f"Wrote {dataset.meta.total_episodes} episodes, {dataset.meta.total_frames} frames to {dataset.root}"
+    )
 
 
 if __name__ == "__main__":
