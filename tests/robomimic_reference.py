@@ -168,6 +168,17 @@ def bc_rnn_algo(obs_shapes: dict[str, list[int]], action_dim: int, gmm: bool) ->
     return make_algo(config, obs_shapes, action_dim)
 
 
+def bc_transformer_algo(obs_shapes: dict[str, list[int]], action_dim: int, gmm: bool) -> BC:
+    """Returns robomimic's BC-Transformer from its template, reading the image experiments' observations."""
+    config = bc_transformer_template_config()
+    image = image_experiment_config()
+    with config.values_unlocked():
+        config.observation.modalities.obs.low_dim = list(image.observation.modalities.obs.low_dim)
+        config.observation.modalities.obs.rgb = list(image.observation.modalities.obs.rgb)
+        config.algo.gmm.enabled = gmm
+    return make_algo(config, obs_shapes, action_dim)
+
+
 def bc_algo(obs_shapes: dict[str, list[int]], action_dim: int, gmm: bool, **loss_weights: float) -> BC:
     """Returns robomimic's BC algorithm built from `bc_config`, with keys in sorted order."""
     return make_algo(bc_config(gmm, **loss_weights), obs_shapes, action_dim)
@@ -215,6 +226,21 @@ def load_policy(policy, reference) -> None:
     else:
         for name in ("mean", "scale", "logits"):
             getattr(policy.action_head, name).load_state_dict(decoder[name].state_dict())
+
+
+def load_transformer(transformer, reference) -> None:
+    """Copies the embedding and GPT weights of robomimic's `MIMO_Transformer` into a `Transformer`."""
+    transformer.input_projection.load_state_dict(reference.nets["embed_encoder"].state_dict())
+    transformer.position_embedding.data.copy_(reference.params["embed_timestep"])
+    transformer.input_norm.load_state_dict(reference.nets["embed_ln"].state_dict())
+    gpt = reference.nets["transformer"].nets
+    for ours, theirs in zip(transformer.blocks, gpt["transformer"], strict=True):
+        ours.attention_norm.load_state_dict(theirs.nets["ln1"].state_dict())
+        ours.attention.qkv.load_state_dict(theirs.nets["attention"].nets["qkv"].state_dict())
+        ours.attention.output.load_state_dict(theirs.nets["attention"].nets["output"].state_dict())
+        ours.mlp_norm.load_state_dict(theirs.nets["ln2"].state_dict())
+        ours.mlp.load_state_dict(theirs.nets["mlp"].state_dict())
+    transformer.output_norm.load_state_dict(gpt["output_ln"].state_dict())
 
 
 def load_visual_core(image_encoder, reference: VisualCore) -> None:

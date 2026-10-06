@@ -426,3 +426,23 @@ template 是 low-dim 資料的設定：batch size 100，訓練 2000 個 epoch、
 robomimic 中監督每一步（`supervise_all_steps`）、預測未來 action（`pred_future_acs`）、
 sinusoidal 或 `nn.Embedding` 位置編碼，以及 GEGLU 的選項，在 template 中都是關閉的，因此
 不移植。
+
+### 14. Transformer
+
+`lerobot_policy_robomimic/transformer.py` 的 `Transformer` 把一段編碼後的 observation 序列
+轉成每一步各一個特徵。它涵蓋 robomimic `MIMO_Transformer` 的 embedding 部分（原 repo
+`robomimic/models/obs_nets.py:997-1022`、`:1088-1102`）與其 `GPT_Backbone`（原 repo
+`robomimic/models/transformers.py`）。測試會載入 robomimic 的權重並比對輸出
+（`tests/test_transformer.py`）。
+
+| 部分           | 行為                                                                                                     | 來源                                                                                            |
+| -------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| 輸入 embedding | 線性投影到寬度，加上每一步可學習的位置向量，再做 LayerNorm 與 dropout                                    | 原 repo `robomimic/models/obs_nets.py:997`、`:1009`、`:1016`、`:1019`、`:1102`                  |
+| Attention      | causal multi-head self-attention，query-key-value 投影沒有 bias                                          | 原 repo `robomimic/models/transformers.py:133`、`:143`、`:179-184`                              |
+| Block          | pre-norm：attention 與 4 倍寬的 GELU MLP，各自加回輸入                                                   | 原 repo `robomimic/models/transformers.py:276`、`:291-292`                                      |
+| 輸出           | 最後一個 block 之後的 LayerNorm                                                                          | 原 repo `robomimic/models/transformers.py:392`                                                  |
+| 初始化         | block 與輸出 norm 的權重從 normal(0, 0.02) 開始、bias 為 0；輸入投影沿用 PyTorch 預設，位置向量從 0 開始 | 原 repo `robomimic/models/transformers.py:362`、`:394-399`；`robomimic/models/obs_nets.py:1009` |
+
+attention 使用 PyTorch 的 `scaled_dot_product_attention` 並設定 `is_causal=True`（本專案），
+它和 robomimic 明確寫出的遮罩（`robomimic/models/transformers.py:143`、`:184`）計算相同的
+masked softmax，差異在浮點誤差範圍內，而且不需要儲存遮罩。

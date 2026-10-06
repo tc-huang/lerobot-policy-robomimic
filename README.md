@@ -476,3 +476,25 @@ The template trains on low-dim data with batch size 100 for 2000 epochs of
 robomimic's options to supervise every step (`supervise_all_steps`), predict
 future actions (`pred_future_acs`), use sinusoidal or `nn.Embedding` position
 embeddings, or use GEGLU are off in the template and are not ported.
+
+### 14. Transformer
+
+`Transformer` in `lerobot_policy_robomimic/transformer.py` maps a sequence of
+encoded observations to one feature per step. It covers the embedding part of
+robomimic's `MIMO_Transformer` (Repo `robomimic/models/obs_nets.py:997-1022`,
+`:1088-1102`) and its `GPT_Backbone` (Repo
+`robomimic/models/transformers.py`). A test loads robomimic's weights and
+compares the outputs (`tests/test_transformer.py`).
+
+| Part            | Behavior                                                                                                                                            | Source                                                                                       |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Input embedding | Linear projection to the width, plus a learned position per step, then LayerNorm and dropout                                                        | Repo `robomimic/models/obs_nets.py:997`, `:1009`, `:1016`, `:1019`, `:1102`                  |
+| Attention       | Causal multi-head self-attention, with a bias-free query-key-value projection                                                                       | Repo `robomimic/models/transformers.py:133`, `:143`, `:179-184`                              |
+| Block           | Pre-norm: attention and a 4× GELU MLP, each added to its input                                                                                      | Repo `robomimic/models/transformers.py:276`, `:291-292`                                      |
+| Output          | LayerNorm after the last block                                                                                                                      | Repo `robomimic/models/transformers.py:392`                                                  |
+| Initialization  | Blocks and output norm start from normal(0, 0.02) weights and zero biases; the input projection keeps PyTorch's default and positions start at zero | Repo `robomimic/models/transformers.py:362`, `:394-399`; `robomimic/models/obs_nets.py:1009` |
+
+Attention uses PyTorch's `scaled_dot_product_attention` with `is_causal=True`
+(this port), which computes the same masked softmax as robomimic's explicit
+mask (`robomimic/models/transformers.py:143`, `:184`) within floating-point
+tolerance, without storing the mask.
