@@ -99,3 +99,22 @@ robomimic 把 spatial softmax 的網格與 temperature 存在 checkpoint 裡
 
 robomimic 支援、但論文實驗沒有用到的選項不移植：ImageNet 預訓練權重、coordinate
 convolution、裁切的位置編碼，以及可學習或加噪聲的 spatial softmax。
+
+### 4. Observation encoder
+
+`lerobot_policy_robomimic/observation_encoder.py` 把 policy 讀取的所有 observation
+轉成一個特徵向量，對應 robomimic 的 `ObservationEncoder`
+（原 repo `robomimic/models/obs_nets.py:119`）。測試會把相同的相機權重載入 robomimic
+的 encoder，並比對輸出（`tests/test_observation_encoder.py`）。
+
+| 部分                 | 行為                                                     | 來源                                                                                                                                                                                    |
+| -------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 向量 observation     | 原樣串接                                                 | 原 repo `robomimic/config/base_config.py:284`（low-dim observation 沒有 encoder）、`robomimic/models/obs_nets.py:303-307`                                                               |
+| 每支相機             | 各自的裁切、`ImageEncoder` 與 ReLU                       | 原 repo `robomimic/models/obs_nets.py:287-289`（每個 key 一個 randomizer）、`:295`（encoder）、`:297`（activation）；ReLU 是預設的 `feature_activation`（`:440`、`:33`），`MIMO_MLP` 沿用預設值（`:608-611`） |
+| 特徵順序             | 依 policy input feature 的順序                           | 本專案；robomimic 則是把 observation key 排序（原 repo `robomimic/utils/file_utils.py:162`，經 `robomimic/scripts/train.py:242` 與 `robomimic/algo/algo.py:154-156` 傳入）              |
+
+robomimic 排序後，相機與向量 observation 會交錯排列；以 image 實驗為例，順序是
+`agentview_image`、`robot0_eef_pos`、`robot0_eef_quat`、`robot0_eye_in_hand_image`、
+`robot0_gripper_qpos`。這個順序只在載入 robomimic 權重時有影響，它決定 MLP 第一層的
+輸入欄位。沿用 LeRobot 的順序，encoder 就不需要知道 robomimic 的 key 名稱；測試則在
+比對前先重新排列 robomimic 的輸出。

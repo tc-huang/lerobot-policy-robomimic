@@ -106,3 +106,25 @@ rebuilt from the feature map size, so they are left out of the state dict.
 Options that robomimic supports but its paper experiments do not use are not
 ported: ImageNet-pretrained weights, coordinate convolution, crop position
 encoding, and a learnable or noisy spatial softmax.
+
+### 4. Observation encoder
+
+`lerobot_policy_robomimic/observation_encoder.py` turns every observation the
+policy reads into one feature vector, like robomimic's `ObservationEncoder`
+(Repo `robomimic/models/obs_nets.py:119`). A test loads the same camera
+weights into robomimic's encoder and compares the outputs
+(`tests/test_observation_encoder.py`).
+
+| Part                 | Behavior                                                         | Source                                                                                                                                                                                  |
+| -------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Vector observations  | Concatenated as they are                                         | Repo `robomimic/config/base_config.py:284` (no encoder for low-dim observations), `robomimic/models/obs_nets.py:303-307`                                                                |
+| Each camera          | Its own crop, `ImageEncoder`, and ReLU                           | Repo `robomimic/models/obs_nets.py:287-289` (randomizer per key), `:295` (encoder), `:297` (activation); the ReLU is the default `feature_activation` (`:440`, `:33`), which `MIMO_MLP` keeps (`:608-611`) |
+| Feature order        | The order of the policy's input features                         | This port; robomimic sorts observation keys instead (Repo `robomimic/utils/file_utils.py:162`, passed on by `robomimic/scripts/train.py:242` and `robomimic/algo/algo.py:154-156`)        |
+
+robomimic's sorted order interleaves cameras and vector observations; for its
+image experiments it is `agentview_image`, `robot0_eef_pos`,
+`robot0_eef_quat`, `robot0_eye_in_hand_image`, `robot0_gripper_qpos`. The
+order only matters when loading robomimic weights, where it decides the
+columns of the first MLP layer. Keeping LeRobot's order leaves robomimic's
+key names out of the encoder; the test reorders robomimic's output before
+comparing.
