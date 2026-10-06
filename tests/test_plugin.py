@@ -12,12 +12,15 @@ from lerobot_policy_robomimic import (
     RobomimicBCRNNPolicy,
     RobomimicBCTransformerConfig,
     RobomimicBCTransformerPolicy,
+    RobomimicBCVAEConfig,
+    RobomimicBCVAEPolicy,
 )
 
 POLICIES = [
     ("robomimic_bc", RobomimicBCConfig, RobomimicBCPolicy),
     ("robomimic_bc_rnn", RobomimicBCRNNConfig, RobomimicBCRNNPolicy),
     ("robomimic_bc_transformer", RobomimicBCTransformerConfig, RobomimicBCTransformerPolicy),
+    ("robomimic_bc_vae", RobomimicBCVAEConfig, RobomimicBCVAEPolicy),
 ]
 
 
