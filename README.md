@@ -829,3 +829,33 @@ LeRobot's dataset gives one task string per sample even when it returns a
 sequence of frames, so the embedding arrives without the time dimension and
 the encoder repeats it. Within a demo the task does not change, so this
 equals robomimic's repeated embedding.
+
+### 23. FiLM
+
+With `language_conditioning=film`, every camera's ResNet-18 is modulated by
+the embedding, robomimic's `ResNet18ConvFiLM` inside
+`VisualCoreLanguageConditioned` (Repo `robomimic/models/base_nets.py:657`,
+`robomimic/models/obs_core.py:189`). `ImageEncoder` gains a `FiLM` layer after
+each residual block, and `CameraEncoder` in
+`lerobot_policy_robomimic/observation_encoder.py` passes the embedding to it.
+`tests/test_language_conditioning.py` compares the camera encoder with
+robomimic's, and BC's loss and actions and BC-RNN's loss with robomimic's
+algorithms, on the same weights.
+
+| Part             | Behavior                                                                                         | Source                                                                                                                       |
+| ---------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| FiLM layer       | A linear layer from the embedding to β and γ for each channel, then `(1 + γ) × x + β` and a ReLU | Repo `robomimic/models/base_nets.py:630`, `:649-654`                                                                         |
+| Placement        | After each of the 8 residual blocks; the stem before them is unchanged                           | Repo `robomimic/models/base_nets.py:699-713`, `:735-740`                                                                     |
+| Embedding size   | `language_embedding_dim`, 768 for the default CLIP model                                         | Repo `robomimic/models/base_nets.py:666`                                                                                     |
+| Features         | The embedding modulates the cameras and is left out of the concatenated features                 | Repo `robomimic/models/obs_nets.py:248-251`, `:282-284`                                                                      |
+| Crop and pooling | Kept from the image experiments: random 76×76 crops and the spatial softmax                      | This port; `VisualCoreLanguageConditioned` pools with a spatial softmax by default (Repo `robomimic/models/obs_core.py:197`) |
+
+robomimic's tutorial shows FiLM with no pooling and no crop
+(`docs/tutorials/language_conditioning.md:88`, `:91`). That is one example
+config, not a default, so this port changes only the backbone and keeps every
+other camera setting of §2; the tests build robomimic's FiLM encoder the same
+way.
+
+`CameraEncoder` replaces the `nn.Sequential` each camera used before, which
+cannot pass a second input to its encoder; its parameters keep the same
+names, so earlier checkpoints still load.

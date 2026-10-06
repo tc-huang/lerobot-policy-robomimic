@@ -17,7 +17,7 @@ from robomimic.algo import algo_factory  # noqa: E402
 from robomimic.algo.bc import BC  # noqa: E402
 from robomimic.config import config_factory  # noqa: E402
 from robomimic.models.base_nets import SpatialSoftmax  # noqa: E402
-from robomimic.models.obs_core import CropRandomizer, VisualCore  # noqa: E402
+from robomimic.models.obs_core import CropRandomizer, VisualCore, VisualCoreLanguageConditioned  # noqa: E402
 from robomimic.models.obs_nets import ObservationEncoder, obs_encoder_factory  # noqa: E402
 from robomimic.scripts.generate_paper_configs import (  # noqa: E402
     modify_bc_config_for_dataset,
@@ -130,6 +130,15 @@ def visual_core(image_shape: list[int]) -> VisualCore:
         VisualCore, dict(rgb_encoder_kwargs()["core_kwargs"]), copy=True
     )
     return VisualCore(input_shape=image_shape, **core_kwargs)
+
+
+def film_visual_core(image_shape: list[int]) -> VisualCoreLanguageConditioned:
+    """Returns the camera encoder of the image experiments with robomimic's FiLM ResNet-18."""
+    core_kwargs = extract_class_init_kwargs_from_dict(
+        VisualCoreLanguageConditioned, dict(rgb_encoder_kwargs()["core_kwargs"]), copy=True
+    )
+    core_kwargs["backbone_class"] = "ResNet18ConvFiLM"
+    return VisualCoreLanguageConditioned(input_shape=image_shape, **core_kwargs)
 
 
 def observation_encoder(obs_shapes: dict[str, list[int]]) -> ObservationEncoder:
@@ -385,7 +394,15 @@ def load_transformer(transformer, reference) -> None:
 
 
 def load_visual_core(image_encoder, reference: VisualCore) -> None:
-    """Copies the weights of robomimic's `VisualCore` into an `ImageEncoder`."""
-    image_encoder.backbone.load_state_dict(reference.backbone.nets.state_dict())
+    """Copies the weights of robomimic's `VisualCore` or `VisualCoreLanguageConditioned` into an `ImageEncoder`."""
+    backbone = reference.backbone
+    if hasattr(backbone, "_film_layers"):
+        image_encoder.backbone[:4].load_state_dict(backbone._base_block.state_dict())
+        for ours, theirs in zip(image_encoder.residual_blocks(), backbone._conv_blocks, strict=True):
+            ours.load_state_dict(theirs.state_dict())
+        for ours, theirs in zip(image_encoder.film, backbone._film_layers, strict=True):
+            ours.projection.load_state_dict(theirs.lang_proj.state_dict())
+    else:
+        image_encoder.backbone.load_state_dict(backbone.nets.state_dict())
     image_encoder.pool.keypoints.load_state_dict(reference.pool.nets.state_dict())
     image_encoder.projection.load_state_dict(reference.nets[-1].state_dict())

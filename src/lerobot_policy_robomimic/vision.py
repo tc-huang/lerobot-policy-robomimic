@@ -54,15 +54,51 @@ class SpatialSoftmax(nn.Module):
         return attention @ self.pos
 
 
-class ImageEncoder(nn.Module):
-    """ResNet-18 trunk, spatial softmax, and a linear projection to one feature per camera."""
+class FiLM(nn.Module):
+    """Feature-wise linear modulation of a feature map by a language embedding, then a ReLU."""
 
-    def __init__(self, height: int, width: int, num_kp: int, feature_dim: int):
+    def __init__(self, language_dim: int, channels: int):
+        super().__init__()
+        self.projection = nn.Linear(language_dim, 2 * channels)
+
+    def forward(self, features: Tensor, language: Tensor) -> Tensor:
+        """Maps (B, C, H, W) features and (B, language_dim) embeddings to (1 + gamma) * x + beta."""
+        beta, gamma = self.projection(language)[..., None, None].chunk(2, dim=1)
+        return torch.relu((1 + gamma) * features + beta)
+
+
+class ImageEncoder(nn.Module):
+    """ResNet-18 trunk, spatial softmax, and a linear projection to one feature per camera.
+
+    With `language_dim`, a `FiLM` layer follows each of the trunk's residual blocks, and the
+    encoder needs a language embedding for every image.
+    """
+
+    def __init__(
+        self, height: int, width: int, num_kp: int, feature_dim: int, language_dim: int | None = None
+    ):
         super().__init__()
         self.backbone = nn.Sequential(*list(resnet18(weights=None).children())[:-2])
+        self.film = (
+            nn.ModuleList(FiLM(language_dim, block.conv2.out_channels) for block in self.residual_blocks())
+            if language_dim is not None
+            else None
+        )
         self.pool = SpatialSoftmax(512, math.ceil(height / 32), math.ceil(width / 32), num_kp)
         self.projection = nn.Linear(num_kp * 2, feature_dim)
 
-    def forward(self, images: Tensor) -> Tensor:
-        """Maps (B, 3, height, width) images to (B, feature_dim) features."""
-        return self.projection(self.pool(self.backbone(images)).flatten(start_dim=1))
+    def residual_blocks(self) -> list[nn.Module]:
+        """Returns the trunk's residual blocks in order."""
+        return [block for stage in self.backbone[4:] for block in stage]
+
+    def forward(self, images: Tensor, language: Tensor | None = None) -> Tensor:
+        """Maps (B, 3, height, width) images, and with FiLM (B, language_dim) embeddings, to (B, feature_dim)."""
+        if self.film is None:
+            features = self.backbone(images)
+        else:
+            if language is None:
+                raise ValueError("This camera encoder is conditioned on language and needs an embedding.")
+            features = self.backbone[:4](images)
+            for block, film in zip(self.residual_blocks(), self.film, strict=True):
+                features = film(block(features), language)
+        return self.projection(self.pool(features).flatten(start_dim=1))

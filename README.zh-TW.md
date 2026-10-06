@@ -729,3 +729,28 @@ cache 中有 CLIP 模型時，把它的 embedding 和 robomimic 的 `get_lang_em
 即使回傳的是一段 frame 序列，LeRobot 的 dataset 對每個樣本也只給一個 task 字串，因此
 embedding 沒有時間維度，由 encoder 重複它。同一個示範中的 task 不會改變，所以結果和
 robomimic 重複的 embedding 相同。
+
+### 23. FiLM
+
+設定 `language_conditioning=film` 時，每支相機的 ResNet-18 都由 embedding 調製，對應
+robomimic 在 `VisualCoreLanguageConditioned` 中使用的 `ResNet18ConvFiLM`（原 repo
+`robomimic/models/base_nets.py:657`、`robomimic/models/obs_core.py:189`）。`ImageEncoder` 在每個
+residual block 之後加上一層 `FiLM`，並由 `lerobot_policy_robomimic/observation_encoder.py` 的
+`CameraEncoder` 把 embedding 傳給它。`tests/test_language_conditioning.py` 會在相同權重下，把
+相機 encoder、BC 的 loss 與 action、BC-RNN 的 loss 和 robomimic 比對。
+
+| 部分           | 行為                                                                                    | 來源                                                                                                                 |
+| -------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| FiLM 層        | 一層 Linear 從 embedding 算出每個 channel 的 β 與 γ，再計算 `(1 + γ) × x + β` 並接 ReLU | 原 repo `robomimic/models/base_nets.py:630`、`:649-654`                                                              |
+| 位置           | 8 個 residual block 之後各一層；之前的 stem 不變                                        | 原 repo `robomimic/models/base_nets.py:699-713`、`:735-740`                                                          |
+| Embedding 大小 | `language_embedding_dim`，預設 CLIP 模型為 768                                          | 原 repo `robomimic/models/base_nets.py:666`                                                                          |
+| 特徵           | Embedding 用來調製相機，不放進串接的特徵                                                | 原 repo `robomimic/models/obs_nets.py:248-251`、`:282-284`                                                           |
+| 裁切與 pooling | 沿用 image 實驗：隨機裁 76×76 與 spatial softmax                                        | 本專案；`VisualCoreLanguageConditioned` 預設以 spatial softmax pooling（原 repo `robomimic/models/obs_core.py:197`） |
+
+robomimic 的教學示範的 FiLM 沒有 pooling 也沒有裁切
+（`docs/tutorials/language_conditioning.md:88`、`:91`）。那只是一個範例 config，不是預設值，
+因此本專案只換掉 backbone，§2 的其他相機設定都保留；測試也以相同方式建立 robomimic 的 FiLM
+encoder。
+
+`CameraEncoder` 取代了原本每支相機使用的 `nn.Sequential`，因為後者無法把第二個輸入傳給
+encoder；它的參數名稱不變，因此先前的 checkpoint 仍可載入。

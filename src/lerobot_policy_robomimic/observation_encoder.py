@@ -1,7 +1,5 @@
 """Turns the observations a robomimic policy reads into one feature vector."""
 
-from collections import OrderedDict
-
 import torch
 from lerobot.configs import FeatureType, PolicyFeature
 from lerobot.utils.constants import OBS_IMAGES
@@ -11,12 +9,27 @@ from .base_config import RobomimicPolicyConfig
 from .vision import ImageEncoder, RandomCrop
 
 
+class CameraEncoder(nn.Module):
+    """Crops a camera's images, encodes them with `ImageEncoder`, and applies an activation."""
+
+    def __init__(self, crop: nn.Module, encoder: ImageEncoder, activation: nn.Module):
+        super().__init__()
+        self.crop = crop
+        self.encoder = encoder
+        self.activation = activation
+
+    def forward(self, images: Tensor, language: Tensor | None = None) -> Tensor:
+        """Maps (B, 3, H, W) images, and (B, language_dim) embeddings for FiLM, to (B, feature_dim)."""
+        return self.activation(self.encoder(self.crop(images), language))
+
+
 class ObservationEncoder(nn.Module):
     """Concatenates vector observations as they are and camera features from `ImageEncoder`.
 
     Features follow the order of `features`. Each camera is cropped, encoded, and, with
     `camera_activation`, passed through a ReLU. A language feature holds one embedding per
-    sample, which is repeated over any further leading dimensions such as time.
+    sample, which is repeated over any further leading dimensions such as time. With `film`,
+    that embedding modulates every camera's ResNet instead of joining the features.
     """
 
     def __init__(
@@ -27,30 +40,33 @@ class ObservationEncoder(nn.Module):
         image_feature_dim: int,
         random_crop_at_inference: bool = False,
         camera_activation: bool = True,
+        film: bool = False,
     ):
         super().__init__()
         self.keys = list(features)
         self.language_key = next(
             (key for key, feature in features.items() if feature.type is FeatureType.LANGUAGE), None
         )
+        if film and self.language_key is None:
+            raise ValueError("FiLM needs a language feature.")
+        self.film = film
+        language_dim = features[self.language_key].shape[0] if film and self.language_key else None
         self.cameras = nn.ModuleDict()
         self.output_dim = 0
         for key, feature in features.items():
             if feature.type is FeatureType.VISUAL:
                 height, width = crop_shape or feature.shape[1:]
-                self.cameras[self.camera_name(key)] = nn.Sequential(
-                    OrderedDict(
-                        crop=(
-                            RandomCrop(crop_shape, random_crop_at_inference)
-                            if crop_shape is not None
-                            else nn.Identity()
-                        ),
-                        encoder=ImageEncoder(height, width, num_kp, image_feature_dim),
-                        activation=nn.ReLU() if camera_activation else nn.Identity(),
-                    )
+                self.cameras[self.camera_name(key)] = CameraEncoder(
+                    crop=(
+                        RandomCrop(crop_shape, random_crop_at_inference)
+                        if crop_shape is not None
+                        else nn.Identity()
+                    ),
+                    encoder=ImageEncoder(height, width, num_kp, image_feature_dim, language_dim),
+                    activation=nn.ReLU() if camera_activation else nn.Identity(),
                 )
                 self.output_dim += image_feature_dim
-            else:
+            elif not (film and key == self.language_key):
                 self.output_dim += feature.shape[0]
 
     @classmethod
@@ -65,6 +81,7 @@ class ObservationEncoder(nn.Module):
             config.image_feature_dim,
             config.random_crop_at_inference,
             camera_activation,
+            film=config.language_conditioning == "film",
         )
 
     @staticmethod
@@ -78,15 +95,20 @@ class ObservationEncoder(nn.Module):
         Camera frames are encoded one by one, so each frame gets its own random crop.
         """
         leading = self.leading_shape(batch)
+        language = (
+            self.repeat_language(batch[self.language_key], leading) if self.language_key is not None else None
+        )
+        film_language = language.flatten(end_dim=-2) if self.film and language is not None else None
         features = []
         for key in self.keys:
             camera = self.camera_name(key)
             if camera in self.cameras:
                 frames = batch[key]
-                encoded = self.cameras[camera](frames.flatten(end_dim=-4))
+                encoded = self.cameras[camera](frames.flatten(end_dim=-4), film_language)
                 features.append(encoded.unflatten(0, frames.shape[:-3]))
             elif key == self.language_key:
-                features.append(self.repeat_language(batch[key], leading))
+                if not self.film:
+                    features.append(language)
             else:
                 features.append(batch[key])
         return torch.cat(features, dim=-1)
