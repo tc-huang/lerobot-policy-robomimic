@@ -44,9 +44,7 @@ def test_image_encoder_matches_robomimic_visual_core(training):
     torch.manual_seed(0)
     reference = robomimic_reference.visual_core([3, *CROP]).train(training)
     ours = ImageEncoder(height=76, width=76, num_kp=32, feature_dim=64).train(training)
-    ours.backbone.load_state_dict(reference.backbone.nets.state_dict())
-    ours.pool.keypoints.load_state_dict(reference.pool.nets.state_dict())
-    ours.projection.load_state_dict(reference.nets[-1].state_dict())
+    robomimic_reference.load_visual_core(ours, reference)
     images = torch.rand(4, 3, *CROP)
 
     torch.testing.assert_close(ours(images), reference(images))
