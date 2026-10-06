@@ -157,11 +157,12 @@ convolution、裁切的位置編碼，以及可學習或加噪聲的 spatial sof
 （原 repo `robomimic/models/obs_nets.py:119`）。測試會把相同的相機權重載入 robomimic
 的 encoder，並比對輸出（`tests/test_observation_encoder.py`）。
 
-| 部分             | 行為                               | 來源                                                                                                                                                                                                          |
-| ---------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 向量 observation | 原樣串接                           | 原 repo `robomimic/config/base_config.py:284`（low-dim observation 沒有 encoder）、`robomimic/models/obs_nets.py:303-307`                                                                                     |
-| 每支相機         | 各自的裁切、`ImageEncoder` 與 ReLU | 原 repo `robomimic/models/obs_nets.py:287-289`（每個 key 一個 randomizer）、`:295`（encoder）、`:297`（activation）；ReLU 是預設的 `feature_activation`（`:440`、`:33`），`MIMO_MLP` 沿用預設值（`:608-611`） |
-| 特徵順序         | 依 policy input feature 的順序     | 本專案；robomimic 則是把 observation key 排序（原 repo `robomimic/utils/file_utils.py:162`，經 `robomimic/scripts/train.py:242` 與 `robomimic/algo/algo.py:154-156` 傳入）                                    |
+| 部分             | 行為                                                                                              | 來源                                                                                                                                                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 向量 observation | 原樣串接                                                                                          | 原 repo `robomimic/config/base_config.py:284`（low-dim observation 沒有 encoder）、`robomimic/models/obs_nets.py:303-307`                                                                                     |
+| 每支相機         | 各自的裁切、`ImageEncoder` 與 ReLU                                                                | 原 repo `robomimic/models/obs_nets.py:287-289`（每個 key 一個 randomizer）、`:295`（encoder）、`:297`（activation）；ReLU 是預設的 `feature_activation`（`:440`、`:33`），`MIMO_MLP` 沿用預設值（`:608-611`） |
+| 特徵順序         | 依 policy input feature 的順序                                                                    | 本專案；robomimic 則是把 observation key 排序（原 repo `robomimic/utils/file_utils.py:162`，經 `robomimic/scripts/train.py:242` 與 `robomimic/algo/algo.py:154-156` 傳入）                                    |
+| 前置維度         | 任意，例如 BC 的 `(B,)` 或 BC-RNN 序列的 `(B, T)`；相機影像逐 frame 編碼，每個 frame 各自隨機裁切 | 原 repo `robomimic/models/obs_nets.py:858`（以 `time_distributed` 套用 encoder）                                                                                                                              |
 
 robomimic 排序後，相機與向量 observation 會交錯排列；以 image 實驗為例，順序是
 `agentview_image`、`robot0_eef_pos`、`robot0_eef_quat`、`robot0_eye_in_hand_image`、

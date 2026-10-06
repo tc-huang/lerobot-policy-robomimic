@@ -34,3 +34,14 @@ def test_matches_robomimic_up_to_feature_order():
 
     assert ours.output_dim == 9 + 64 * len(robomimic_reference.CAMERAS)
     torch.testing.assert_close(ours.eval()(batch), expected)
+
+
+def test_sequences_are_encoded_frame_by_frame():
+    torch.manual_seed(0)
+    encoder = ObservationEncoder(
+        robomimic_reference.image_experiment_features(), crop_shape=(76, 76), num_kp=32, image_feature_dim=64
+    ).eval()
+    steps = [robomimic_reference.random_image_observations(2)[1] for _ in range(3)]
+    sequence = {key: torch.stack([step[key] for step in steps], dim=1) for key in steps[0]}
+
+    torch.testing.assert_close(encoder(sequence), torch.stack([encoder(step) for step in steps], dim=1))

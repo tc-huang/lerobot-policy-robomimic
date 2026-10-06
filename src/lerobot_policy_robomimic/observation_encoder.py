@@ -48,12 +48,17 @@ class ObservationEncoder(nn.Module):
         return key.removeprefix(f"{OBS_IMAGES}.")
 
     def forward(self, batch: dict[str, Tensor]) -> Tensor:
-        """Maps a batch of (B, ...) observations to (B, output_dim) features."""
+        """Maps observations with leading dimensions such as (B,) or (B, T) to (..., output_dim) features.
+
+        Camera frames are encoded one by one, so each frame gets its own random crop.
+        """
         features = []
         for key in self.keys:
             camera = self.camera_name(key)
             if camera in self.cameras:
-                features.append(self.cameras[camera](batch[key]))
+                frames = batch[key]
+                encoded = self.cameras[camera](frames.flatten(end_dim=-4))
+                features.append(encoded.unflatten(0, frames.shape[:-3]))
             else:
                 features.append(batch[key])
         return torch.cat(features, dim=-1)
