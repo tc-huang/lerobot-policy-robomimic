@@ -128,3 +128,24 @@ order only matters when loading robomimic weights, where it decides the
 columns of the first MLP layer. Keeping LeRobot's order leaves robomimic's
 key names out of the encoder; the test reorders robomimic's output before
 comparing.
+
+### 5. Actor network
+
+`MLPActor` in `lerobot_policy_robomimic/actor.py` is robomimic's
+`ActorNetwork` (Repo `robomimic/models/policy_nets.py:26`), which BC builds
+with `actor_layer_dims` (`robomimic/algo/bc.py:87-92`). It takes the
+observation encoder as an argument, so the recurrent and transformer actors of
+later policies can reuse the encoder. A test loads robomimic's weights,
+reordering the input columns of the first layer as in §4, and compares the
+actions (`tests/test_actor.py`).
+
+| Part        | Behavior                                                      | Source                                                                                                                                         |
+| ----------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| MLP         | A linear layer and a ReLU for each size in `actor_layer_dims` | Repo `robomimic/models/obs_nets.py:617-623`; the last size is the MLP output and also gets a ReLU (`:623`, `robomimic/models/base_nets.py:256-258`) |
+| Action head | Linear layer to the action size                               | Repo `robomimic/models/obs_nets.py:627`, `:392` (`ObservationDecoder`)                                                                         |
+| Output      | `tanh`, so actions lie in `[-1, 1]`                           | Repo `robomimic/models/policy_nets.py:107`                                                                                                    |
+
+robomimic splits the MLP into hidden layers and an output layer
+(`robomimic/models/obs_nets.py:619-620`), but since both end in a ReLU, the
+result is one linear layer and one ReLU per size, which is how `MLPActor`
+builds it.

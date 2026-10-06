@@ -118,3 +118,20 @@ robomimic 排序後，相機與向量 observation 會交錯排列；以 image �
 `robot0_gripper_qpos`。這個順序只在載入 robomimic 權重時有影響，它決定 MLP 第一層的
 輸入欄位。沿用 LeRobot 的順序，encoder 就不需要知道 robomimic 的 key 名稱；測試則在
 比對前先重新排列 robomimic 的輸出。
+
+### 5. Actor 網路
+
+`lerobot_policy_robomimic/actor.py` 的 `MLPActor` 對應 robomimic 的 `ActorNetwork`
+（原 repo `robomimic/models/policy_nets.py:26`），BC 用 `actor_layer_dims` 建立它
+（`robomimic/algo/bc.py:87-92`）。它以參數接收 observation encoder，讓之後的
+recurrent 與 transformer actor 可以重用同一個 encoder。測試會載入 robomimic 的權重，
+依 §4 的方式重新排列第一層的輸入欄位，再比對輸出的 action（`tests/test_actor.py`）。
+
+| 部分        | 行為                                                   | 來源                                                                                                                                            |
+| ----------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| MLP         | `actor_layer_dims` 的每個大小各一層 Linear 加 ReLU     | 原 repo `robomimic/models/obs_nets.py:617-623`；最後一個大小是 MLP 的輸出，同樣接 ReLU（`:623`、`robomimic/models/base_nets.py:256-258`）       |
+| Action head | Linear 層，輸出 action 維度                            | 原 repo `robomimic/models/obs_nets.py:627`、`:392`（`ObservationDecoder`）                                                                      |
+| 輸出        | `tanh`，使 action 落在 `[-1, 1]`                       | 原 repo `robomimic/models/policy_nets.py:107`                                                                                                  |
+
+robomimic 把 MLP 拆成隱藏層與輸出層（`robomimic/models/obs_nets.py:619-620`），但兩者
+最後都接 ReLU，結果就是每個大小各一層 Linear 加 ReLU，`MLPActor` 也就這樣建立。
