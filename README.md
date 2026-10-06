@@ -729,3 +729,25 @@ Each part has its own observation encoder, as in robomimic, where every
 `MIMO_MLP` builds one (`robomimic/models/obs_nets.py:608`): with two
 cameras, the posterior and the decoder hold four ResNet-18s between them, and
 a conditioned prior adds two more.
+
+### 19. Policy
+
+`RobomimicBCVAEPolicy` wraps `ActionVAE` in the methods LeRobot's training and
+evaluation loops call, following robomimic's `BC_VAE` class (Repo
+`robomimic/algo/bc.py:373`). Tests load the same weights into robomimic's
+algorithm with a learned, observation-conditioned mixture prior and a KL
+weight of 0.5, and compare the loss, the logged values, and the actions
+(`tests/test_policy_bc_vae.py`).
+
+| Method                 | Behavior                                                                                      | Source                                                                           |
+| ---------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `forward`              | Reconstruction loss plus `vae_kl_weight` × KL loss; logs both and the mean posterior variance | Repo `robomimic/algo/bc.py:403-433`, `:452`, `:477`                              |
+| `select_action`        | An action decoded from a latent drawn from the prior, one per observation, without gradients  | Repo `robomimic/algo/bc.py:239-251`; `robomimic/models/policy_nets.py:1565-1570` |
+| `predict_action_chunk` | The same action as a chunk of length 1                                                        | This port, as for BC (§6)                                                        |
+| `reset`                | Nothing to reset                                                                              | Repo `robomimic/algo/algo.py:365`                                                |
+| `get_optim_params`     | All parameters, returned as `self.parameters()`                                               | Repo `robomimic/algo/algo.py:169-193`; LeRobot as for BC (§6)                    |
+
+`BC_VAE` also reads a `freeze_encoder` flag from the batch, which stops the
+gradient into the posterior (`robomimic/algo/bc.py:419`). Only BCQ sets it,
+for its own action sampler (`robomimic/algo/bcq.py:242-243`), so it is not
+ported.

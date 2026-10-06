@@ -645,3 +645,22 @@ action。
 和 robomimic 一樣，每個部分都有自己的 observation encoder，因為 robomimic 的每個 `MIMO_MLP`
 都會建立一個（`robomimic/models/obs_nets.py:608`）：兩支相機時，posterior 與 decoder
 共有四個 ResNet-18，條件化的 prior 再多兩個。
+
+### 19. Policy
+
+`RobomimicBCVAEPolicy` 在 LeRobot 訓練與評估流程會呼叫的 method 中包裝 `ActionVAE`，行為依照
+robomimic 的 `BC_VAE` class（原 repo `robomimic/algo/bc.py:373`）。測試會把相同權重載入
+robomimic 的演算法，使用可學習、依 observation 條件化的混合 prior 與 0.5 的 KL 權重，比對
+loss、記錄的數值與 action（`tests/test_policy_bc_vae.py`）。
+
+| Method                 | 行為                                                                          | 來源                                                                                |
+| ---------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `forward`              | 重建 loss 加上 `vae_kl_weight` × KL loss；記錄這兩者與 posterior 變異數的平均 | 原 repo `robomimic/algo/bc.py:403-433`、`:452`、`:477`                              |
+| `select_action`        | 從 prior 抽 latent 再解碼出的 action，每個 observation 一個，不計算梯度       | 原 repo `robomimic/algo/bc.py:239-251`；`robomimic/models/policy_nets.py:1565-1570` |
+| `predict_action_chunk` | 同一個 action，作為長度 1 的 chunk                                            | 本專案，與 BC 相同（§6）                                                            |
+| `reset`                | 沒有需要重設的狀態                                                            | 原 repo `robomimic/algo/algo.py:365`                                                |
+| `get_optim_params`     | 所有參數，以 `self.parameters()` 回傳                                         | 原 repo `robomimic/algo/algo.py:169-193`；LeRobot 部分與 BC 相同（§6）              |
+
+`BC_VAE` 也會從 batch 讀取 `freeze_encoder` 旗標，用來擋住流向 posterior 的梯度
+（`robomimic/algo/bc.py:419`）。只有 BCQ 會為自己的 action sampler 設定它
+（`robomimic/algo/bcq.py:242-243`），因此不移植。
