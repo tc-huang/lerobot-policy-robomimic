@@ -127,7 +127,6 @@ def test_bc_transformer_heads_must_divide_the_width():
 @pytest.mark.parametrize(
     ("settings", "message"),
     [
-        ({"vae_decoder_is_conditioned": False}, "decoder, its prior, or both"),
         ({"vae_prior_is_conditioned": True}, "vae_prior_is_conditioned needs vae_prior_learn"),
         ({"vae_prior_use_gmm": True}, "vae_prior_use_gmm needs vae_prior_learn"),
     ],
@@ -135,12 +134,3 @@ def test_bc_transformer_heads_must_divide_the_width():
 def test_bc_vae_rejects_what_robomimic_rejects(settings, message):
     with pytest.raises(ValueError, match=message):
         make_config(RobomimicBCVAEConfig, **settings)
-
-
-def test_bc_vae_may_condition_only_its_learned_prior():
-    make_config(
-        RobomimicBCVAEConfig,
-        vae_decoder_is_conditioned=False,
-        vae_prior_learn=True,
-        vae_prior_is_conditioned=True,
-    )

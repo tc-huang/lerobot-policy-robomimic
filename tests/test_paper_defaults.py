@@ -109,7 +109,7 @@ def test_bc_vae_defaults_match_robomimic():
     assert ours.vae_kl_weight == vae.kl_weight
     assert ours.vae_encoder_layer_dims == tuple(vae.encoder_layer_dims)
     assert ours.vae_decoder_layer_dims == tuple(vae.decoder_layer_dims)
-    assert ours.vae_decoder_is_conditioned == vae.decoder.is_conditioned
+    assert vae.decoder.is_conditioned
     assert ours.vae_reconstruction_sum_across_elements == vae.decoder.reconstruction_sum_across_elements
     assert ours.vae_prior_learn == vae.prior.learn
     assert ours.vae_prior_is_conditioned == vae.prior.is_conditioned

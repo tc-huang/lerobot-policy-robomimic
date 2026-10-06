@@ -296,6 +296,44 @@ def load_policy(policy, reference) -> None:
             ours.load_state_dict(layer.state_dict())
 
 
+def load_conditioned_mlp(ours, reference, group: str, input_dim: int) -> None:
+    """Copies a robomimic `MIMO_MLP` into a `ConditionedMLP`.
+
+    `group` names the MIMO_MLP's observation group, and `input_dim` is the size of the vector
+    that precedes the observations; the observation columns of the first layer are reordered
+    from robomimic's sorted keys.
+    """
+    observations = reference.nets["encoder"].nets[group].obs_nets
+    for camera in CAMERAS:
+        load_visual_core(ours.encoder.cameras[camera].encoder, observations[f"{camera}_image"])
+    reference_linears = [
+        layer for layer in reference.nets["mlp"]._model if isinstance(layer, torch.nn.Linear)
+    ]
+    ours_linears = [layer for layer in ours.mlp.layers if isinstance(layer, torch.nn.Linear)]
+    for index, (layer, theirs) in enumerate(zip(ours_linears, reference_linears, strict=True)):
+        weight = theirs.weight
+        if index == 0:
+            weight = torch.cat([weight[:, :input_dim], lerobot_feature_order(weight[:, input_dim:])], dim=-1)
+        layer.load_state_dict({"weight": weight, "bias": theirs.bias})
+    for name, layer in ours.outputs.items():
+        layer.load_state_dict(reference.nets["decoder"].nets[name].state_dict())
+
+
+def load_vae(vae, reference) -> None:
+    """Copies the weights of robomimic's `VAE` into an `ActionVAE`."""
+    load_conditioned_mlp(
+        vae.posterior, reference.nets["encoder"], "condition", reference.input_shapes["action"][0]
+    )
+    load_conditioned_mlp(vae.decoder, reference.nets["decoder"], "condition", reference.latent_dim)
+    prior = reference.nets["prior"]
+    if not prior.learnable:
+        return
+    if prior.prior_module is not None:
+        load_conditioned_mlp(vae.prior.network, prior.prior_module, "obs", 0)
+    for name, parameter in prior.prior_params.items():
+        vae.prior.params[name].data.copy_(parameter)
+
+
 def load_transformer(transformer, reference) -> None:
     """Copies the embedding and GPT weights of robomimic's `MIMO_Transformer` into a `Transformer`."""
     transformer.input_projection.load_state_dict(reference.nets["embed_encoder"].state_dict())

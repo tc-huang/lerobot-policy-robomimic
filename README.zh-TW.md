@@ -596,22 +596,52 @@ BC-VAE 的 optimizer 和 BC 相同（原 repo `robomimic/config/bc_config.py:27-
 VAE 設定沿用 robomimic 的預設值；`tests/test_paper_defaults.py` 會把它們和 robomimic 在
 image 實驗中的 BC-VAE config 比對。
 
-| 設定                   | 預設值                              | Config 欄位                                                                                             | 來源                                                                                 |
-| ---------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Latent 大小            | 14，即 7 維 action 的兩倍           | `vae_latent_dim`                                                                                        | 原 repo `robomimic/config/bc_config.py:60`                                           |
-| Latent 範圍限制        | 無                                  | `vae_latent_clip`                                                                                       | 原 repo `robomimic/config/bc_config.py:61`                                           |
-| KL 權重                | 1                                   | `vae_kl_weight`                                                                                         | 原 repo `robomimic/config/bc_config.py:62`                                           |
-| Encoder 與 decoder MLP | 各為 (300, 400)                     | `vae_encoder_layer_dims`、`vae_decoder_layer_dims`                                                      | 原 repo `robomimic/config/bc_config.py:81-82`                                        |
-| Decoder 輸入           | Latent 與 observation               | `vae_decoder_is_conditioned`（True）                                                                    | 原 repo `robomimic/config/bc_config.py:65`                                           |
-| 重建 loss              | 平方誤差的平均                      | `vae_reconstruction_sum_across_elements`（False）                                                       | 原 repo `robomimic/config/bc_config.py:66`、`robomimic/models/vae_nets.py:1277-1284` |
-| Prior                  | 固定的 N(0, 1)                      | `vae_prior_learn`（False）                                                                              | 原 repo `robomimic/config/bc_config.py:69`                                           |
-| 可學習的 prior         | 單一高斯分佈，不依 observation 而變 | `vae_prior_is_conditioned`（False）、`vae_prior_use_gmm`（False）、`vae_prior_layer_dims`（(300, 400)） | 原 repo `robomimic/config/bc_config.py:70-71`、`:83`                                 |
-| 混合 prior             | 10 個 mode，權重均等                | `vae_prior_gmm_num_modes`（10）、`vae_prior_gmm_learn_weights`（False）                                 | 原 repo `robomimic/config/bc_config.py:72-73`                                        |
+| 設定                   | 預設值                              | Config 欄位                                                                                             | 來源                                                                                                                                            |
+| ---------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Latent 大小            | 14，即 7 維 action 的兩倍           | `vae_latent_dim`                                                                                        | 原 repo `robomimic/config/bc_config.py:60`                                                                                                      |
+| Latent 範圍限制        | 無                                  | `vae_latent_clip`                                                                                       | 原 repo `robomimic/config/bc_config.py:61`                                                                                                      |
+| KL 權重                | 1                                   | `vae_kl_weight`                                                                                         | 原 repo `robomimic/config/bc_config.py:62`                                                                                                      |
+| Encoder 與 decoder MLP | 各為 (300, 400)                     | `vae_encoder_layer_dims`、`vae_decoder_layer_dims`                                                      | 原 repo `robomimic/config/bc_config.py:81-82`                                                                                                   |
+| Decoder 輸入           | Latent 與 observation               | （固定）                                                                                                | 原 repo `robomimic/config/bc_config.py:65`；不論這個設定為何，robomimic 都讓 decoder 讀 observation（`robomimic/models/vae_nets.py:1049-1050`） |
+| 重建 loss              | 平方誤差的平均                      | `vae_reconstruction_sum_across_elements`（False）                                                       | 原 repo `robomimic/config/bc_config.py:66`、`robomimic/models/vae_nets.py:1277-1284`                                                            |
+| Prior                  | 固定的 N(0, 1)                      | `vae_prior_learn`（False）                                                                              | 原 repo `robomimic/config/bc_config.py:69`                                                                                                      |
+| 可學習的 prior         | 單一高斯分佈，不依 observation 而變 | `vae_prior_is_conditioned`（False）、`vae_prior_use_gmm`（False）、`vae_prior_layer_dims`（(300, 400)） | 原 repo `robomimic/config/bc_config.py:70-71`、`:83`                                                                                            |
+| 混合 prior             | 10 個 mode，權重均等                | `vae_prior_gmm_num_modes`（10）、`vae_prior_gmm_learn_weights`（False）                                 | 原 repo `robomimic/config/bc_config.py:72-73`                                                                                                   |
 
-robomimic 以 assertion 拒絕的組合，config 會丟出 `ValueError`：decoder 與 prior 都不依
-observation 條件化（原 repo `robomimic/models/vae_nets.py:940`），以及 prior 依
-observation 條件化或使用混合分佈、卻沒有設為可學習（`:943`、`:983`）。
+robomimic 以 assertion 拒絕的組合，config 會丟出 `ValueError`：prior 依 observation
+條件化或使用混合分佈、卻沒有設為可學習（原 repo `robomimic/models/vae_nets.py:943`、`:983`）。
+
+robomimic 的 `decoder.is_conditioned` 只用在一個 assertion，檢查 decoder 或 prior 至少有一個
+依 observation 條件化（`robomimic/models/vae_nets.py:940`）；只要 VAE 有 observation，decoder
+就會拿到 observation 這一組輸入（`:1049-1050`，`v0.1.0:robomimic/models/vae_nets.py:1109`
+也一樣）。在 robomimic 中把它設為 false 沒有任何效果，因此本專案沒有這個欄位；測試在
+robomimic 端把它設為 false，結果仍然一致（`tests/test_vae.py`）。
 
 robomimic 的 categorical prior（`robomimic/config/bc_config.py:74-79`）不移植。它每個 epoch
 把 Gumbel-softmax 的溫度降低固定的量（`robomimic/algo/bc.py:393-400`），而 LeRobot 不會把
 epoch 交給 policy。
+
+### 18. 網路
+
+`lerobot_policy_robomimic/vae.py` 的 `ActionVAE` 是 `VAEActor` 為 action 建立的 robomimic
+`VAE`（原 repo `robomimic/models/policy_nets.py:1336`、`robomimic/models/vae_nets.py:747`）。
+它的三個部分各是一個 `ConditionedMLP`，對應 robomimic 的 `MIMO_MLP`
+（`robomimic/models/obs_nets.py:541`）：一個 §4 的 observation encoder、一個 MLP，以及每個
+輸出各一層 Linear。`tests/test_vae.py` 把相同權重載入 robomimic 的 `VAE`，依 §4 的方式重新
+排列每個 MLP 第一層的 observation 欄位，並在八種 prior 與 decoder 設定下比對 loss 與抽樣出的
+action。
+
+| 部分        | 行為                                                                                                    | 來源                                                                                                                            |
+| ----------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Posterior   | Action 接上編碼後的 observation，經 MLP 輸出 latent 的平均值與對數變異數                                | 原 repo `robomimic/models/vae_nets.py:1014-1016`、`:1026-1029`                                                                  |
+| Decoder     | Latent 接上編碼後的 observation，經 MLP 輸出 action，再以 `tanh` 限制範圍                               | 原 repo `robomimic/models/vae_nets.py:1048-1050`、`:1192`；`robomimic/models/policy_nets.py:1398-1399`                          |
+| Prior       | N(0, 1)；或是可學習的參數，以 N(0, 1) 除以參數大小的平方根初始化；或是讀取自己編碼的 observation 的 MLP | 原 repo `robomimic/models/vae_nets.py:419`、`:128`、`:1068-1069`                                                                |
+| 混合權重    | 均等，或是可學習並經 `log_softmax` 正規化                                                               | 原 repo `robomimic/models/vae_nets.py:403`、`:499`                                                                              |
+| Latent 抽樣 | 平均值加上標準差乘以高斯雜訊，對數標準差限制在 [−4, 15]                                                 | 原 repo `robomimic/utils/torch_utils.py:77`、`:83`                                                                              |
+| Prior 抽樣  | 依混合權重抽出 mode，再從該 mode 抽 latent；有設定 `vae_latent_clip` 時再限制範圍                       | 原 repo `robomimic/models/vae_nets.py:406-412`、`:422`                                                                          |
+| KL loss     | 對 N(0, 1) 或可學習的高斯分佈用解析解；對混合分佈則在 posterior 抽樣點上估計，對數變異數限制在 [−8, 30] | 原 repo `robomimic/models/vae_nets.py:452`、`:462`、`:470-474`；`robomimic/utils/loss_utils.py:39`、`:56-60`、`:78`、`:104-119` |
+| 重建 loss   | 解碼 posterior 抽樣後的平方誤差，對所有元素取平均，或對每個樣本加總                                     | 原 repo `robomimic/models/vae_nets.py:1277-1284`                                                                                |
+
+和 robomimic 一樣，每個部分都有自己的 observation encoder，因為 robomimic 的每個 `MIMO_MLP`
+都會建立一個（`robomimic/models/obs_nets.py:608`）：兩支相機時，posterior 與 decoder
+共有四個 ResNet-18，條件化的 prior 再多兩個。
