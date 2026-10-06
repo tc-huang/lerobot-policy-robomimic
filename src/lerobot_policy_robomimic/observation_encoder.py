@@ -7,6 +7,7 @@ from lerobot.configs import FeatureType, PolicyFeature
 from lerobot.utils.constants import OBS_IMAGES
 from torch import Tensor, nn
 
+from .base_config import RobomimicPolicyConfig
 from .vision import ImageEncoder, RandomCrop
 
 
@@ -41,6 +42,16 @@ class ObservationEncoder(nn.Module):
                 self.output_dim += image_feature_dim
             else:
                 self.output_dim += feature.shape[0]
+
+    @classmethod
+    def from_config(cls, config: RobomimicPolicyConfig) -> "ObservationEncoder":
+        """Builds the encoder for the observations `config` reads."""
+        return cls(
+            config.observation_features,
+            config.crop_shape,
+            config.spatial_softmax_num_kp,
+            config.image_feature_dim,
+        )
 
     @staticmethod
     def camera_name(key: str) -> str:

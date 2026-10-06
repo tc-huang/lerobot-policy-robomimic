@@ -42,10 +42,13 @@ def image_experiment_obs_shapes() -> dict[str, list[int]]:
     return shapes | {f"{camera}_image": list(IMAGE_SHAPE) for camera in CAMERAS}
 
 
-def random_image_observations(batch_size: int) -> tuple[dict, dict]:
-    """Returns the same random observations keyed for robomimic and for LeRobot."""
-    obs = {key: torch.randn(batch_size, dim) for key, dim in STATE_KEYS.items()}
-    obs |= {f"{camera}_image": torch.rand(batch_size, *IMAGE_SHAPE) for camera in CAMERAS}
+def random_image_observations(*leading: int) -> tuple[dict, dict]:
+    """Returns the same random observations, with leading dimensions such as (B,) or (B, T).
+
+    The first dict is keyed for robomimic, the second for LeRobot.
+    """
+    obs = {key: torch.randn(*leading, dim) for key, dim in STATE_KEYS.items()}
+    obs |= {f"{camera}_image": torch.rand(*leading, *IMAGE_SHAPE) for camera in CAMERAS}
     batch = {OBS_STATE: torch.cat([obs[key] for key in STATE_KEYS], dim=-1)}
     batch |= {f"{OBS_IMAGES}.{camera}": obs[f"{camera}_image"] for camera in CAMERAS}
     return obs, batch
@@ -127,9 +130,21 @@ def bc_rnn_config(hdf5_type: str = "image"):
     return modify_bc_rnn_config_for_dataset(image_experiment_config(), "lift", "ph", hdf5_type)
 
 
+def bc_rnn_algo(obs_shapes: dict[str, list[int]], action_dim: int, gmm: bool) -> BC:
+    """Returns robomimic's BC-RNN algorithm built from `bc_rnn_config`, with keys in sorted order."""
+    config = bc_rnn_config()
+    with config.algo.values_unlocked():
+        config.algo.gmm.enabled = gmm
+    return make_algo(config, obs_shapes, action_dim)
+
+
 def bc_algo(obs_shapes: dict[str, list[int]], action_dim: int, gmm: bool, **loss_weights: float) -> BC:
     """Returns robomimic's BC algorithm built from `bc_config`, with keys in sorted order."""
-    config = bc_config(gmm, **loss_weights)
+    return make_algo(bc_config(gmm, **loss_weights), obs_shapes, action_dim)
+
+
+def make_algo(config, obs_shapes: dict[str, list[int]], action_dim: int) -> BC:
+    """Builds the robomimic algorithm of `config` on the CPU, with keys in sorted order."""
     obs_utils.initialize_obs_utils_with_config(config)
     return algo_factory(
         algo_name="bc",
@@ -141,20 +156,29 @@ def bc_algo(obs_shapes: dict[str, list[int]], action_dim: int, gmm: bool, **loss
 
 
 def load_policy(policy, reference) -> None:
-    """Copies the weights of BC's actor network into a `RobomimicBCPolicy`.
+    """Copies the weights of BC's or BC-RNN's actor network into our policy.
 
-    The input columns of the first MLP layer are reordered from robomimic's sorted keys.
+    The input columns of the first layer after the encoder, the LSTM's or the MLP's, are
+    reordered from robomimic's sorted keys.
     """
     for camera in CAMERAS:
         load_visual_core(
             policy.encoder.cameras[camera].encoder,
             reference.nets["encoder"].nets["obs"].obs_nets[f"{camera}_image"],
         )
-    reference_mlp = [layer for layer in reference.nets["mlp"]._model if isinstance(layer, torch.nn.Linear)]
-    ours_mlp = [layer for layer in policy.mlp.layers if isinstance(layer, torch.nn.Linear)]
-    for index, (ours, theirs) in enumerate(zip(ours_mlp, reference_mlp, strict=True)):
-        weight = lerobot_feature_order(theirs.weight) if index == 0 else theirs.weight
+    reordered = False
+    if "rnn" in reference.nets:
+        lstm = dict(reference.nets["rnn"].nets.state_dict())
+        lstm["weight_ih_l0"] = lerobot_feature_order(lstm["weight_ih_l0"])
+        policy.lstm.load_state_dict(lstm)
+        reordered = True
+    reference_mlp = reference.nets["mlp"]._model if "mlp" in reference.nets else []
+    reference_linears = [layer for layer in reference_mlp if isinstance(layer, torch.nn.Linear)]
+    ours_linears = [layer for layer in policy.mlp.layers if isinstance(layer, torch.nn.Linear)]
+    for ours, theirs in zip(ours_linears, reference_linears, strict=True):
+        weight = theirs.weight if reordered else lerobot_feature_order(theirs.weight)
         ours.load_state_dict({"weight": weight, "bias": theirs.bias})
+        reordered = True
     decoder = reference.nets["decoder"].nets
     if "action" in decoder:
         policy.action_head.linear.load_state_dict(decoder["action"].state_dict())

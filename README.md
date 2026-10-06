@@ -296,3 +296,45 @@ indices past the end to the last frame (LeRobot
 
 robomimic's open-loop mode (`robomimic/config/bc_config.py:91`), GRU, and
 bidirectional LSTMs are not used by the paper experiments and are not ported.
+
+### 9. Network
+
+`RobomimicBCRNNPolicy` encodes each step of a sequence with the observation
+encoder (§4), runs a PyTorch `nn.LSTM` over the steps, and applies the MLP and
+action head of §5 at every step. Together they are robomimic's
+`RNNActorNetwork` and `RNNGMMActorNetwork` (Repo
+`robomimic/models/policy_nets.py:563`, `:728`).
+
+| Part     | Behavior                                                                | Source                                                                                       |
+| -------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Encoder  | The observation encoder of §4, applied to every step                    | Repo `robomimic/models/obs_nets.py:858`                                                      |
+| LSTM     | Batch-first `nn.LSTM`, starting from zeros when no state is given       | Repo `robomimic/models/obs_nets.py:788`, `robomimic/models/base_nets.py:347`, `:372`, `:424` |
+| Per step | The MLP (empty by default) and the action head, applied to every output | Repo `robomimic/models/obs_nets.py:765`, `:785`, `robomimic/models/base_nets.py:426`         |
+
+robomimic wraps the LSTM in `RNN_Base` (Repo `robomimic/models/base_nets.py:306`),
+which only adds a zero initial state; `nn.LSTM` already starts from zeros, so
+this port uses it directly. A robomimic LSTM's state dict therefore loads into
+`lstm` as it is, except that the input columns of `weight_ih_l0` follow
+robomimic's sorted keys (§4).
+
+### 10. Policy
+
+`RobomimicBCRNNPolicy` follows robomimic's `BC_RNN` and `BC_RNN_GMM` classes
+(Repo `robomimic/algo/bc.py:483`, `:578`). Tests load the same weights into
+robomimic's algorithms and compare the sequence losses of both heads and the
+actions of 25 consecutive steps across two state resets
+(`tests/test_policy_bc_rnn.py`).
+
+| Method                 | Behavior                                                                                       | Source                                                                                                                     |
+| ---------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `forward`              | The action head's loss over every step of every sequence, padded steps included                | Repo `robomimic/algo/bc.py:630`, `:652` (`BC_RNN_GMM`); `BC_RNN` uses `BC`'s loss (`:182-192`)                             |
+| `select_action`        | Runs one LSTM step from the kept state; the state is cleared before steps 0, 10, 20, and so on | Repo `robomimic/algo/bc.py:551`, `:565`                                                                                    |
+| `reset`                | Clears the LSTM state and the step count                                                       | Repo `robomimic/algo/bc.py:570-575`                                                                                        |
+| `predict_action_chunk` | Not supported                                                                                  | This port: every action advances the LSTM state, and the guide allows `NotImplementedError` for policies that do not chunk |
+
+The LSTM state does not last a whole episode: robomimic clears it every
+`rnn_horizon` steps at inference, matching the 10-step sequences it was
+trained on.
+
+The policy builds its encoder and action head with the same
+`ObservationEncoder.from_config` and `make_action_head` as BC.

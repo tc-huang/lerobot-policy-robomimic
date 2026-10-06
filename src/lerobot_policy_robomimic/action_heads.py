@@ -6,6 +6,8 @@ import torch
 from torch import Tensor, distributions, nn
 from torch.nn.functional import cosine_similarity, mse_loss, smooth_l1_loss, softplus
 
+from .base_config import RobomimicPolicyConfig
+
 
 class ActionHead(nn.Module, abc.ABC):
     """Maps (B, input_dim) features to actions in [-1, 1]."""
@@ -84,3 +86,13 @@ class GMMHead(ActionHead):
     def act(self, features: Tensor) -> Tensor:
         """Samples a mixture component, then an action from it."""
         return self(features).sample()
+
+
+def make_action_head(config: RobomimicPolicyConfig, input_dim: int) -> ActionHead:
+    """Returns the GMM head or the deterministic head that `config` asks for."""
+    action_dim = config.action_feature.shape[0]
+    if config.use_gmm:
+        return GMMHead(
+            input_dim, action_dim, config.gmm_num_modes, config.gmm_min_std, config.gmm_low_noise_eval
+        )
+    return DeterministicHead(input_dim, action_dim, config.l2_weight, config.l1_weight, config.cos_weight)

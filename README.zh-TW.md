@@ -270,3 +270,40 @@ demo 中每個 frame 都是一段訓練序列的起點；序列超出 demo 結�
 
 robomimic 的 open-loop 模式（`robomimic/config/bc_config.py:91`）、GRU 與雙向 LSTM，
 論文實驗都沒有使用，因此不移植。
+
+### 9. 網路
+
+`RobomimicBCRNNPolicy` 以 observation encoder（§4）編碼序列的每一步，用 PyTorch 的
+`nn.LSTM` 依序處理各步，再在每一步套用 §5 的 MLP 與 action head。三者合起來對應 robomimic
+的 `RNNActorNetwork` 與 `RNNGMMActorNetwork`（原 repo `robomimic/models/policy_nets.py:563`、
+`:728`）。
+
+| 部分    | 行為                                              | 來源                                                                                            |
+| ------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Encoder | §4 的 observation encoder，套用到每一步           | 原 repo `robomimic/models/obs_nets.py:858`                                                      |
+| LSTM    | batch-first 的 `nn.LSTM`，沒有給狀態時從零開始    | 原 repo `robomimic/models/obs_nets.py:788`、`robomimic/models/base_nets.py:347`、`:372`、`:424` |
+| 每一步  | MLP（預設為空）與 action head，套用到每一步的輸出 | 原 repo `robomimic/models/obs_nets.py:765`、`:785`、`robomimic/models/base_nets.py:426`         |
+
+robomimic 用 `RNN_Base` 包裝 LSTM（原 repo `robomimic/models/base_nets.py:306`），它只多了
+補零的初始狀態；`nn.LSTM` 本來就從零開始，因此本專案直接使用它。robomimic LSTM 的 state
+dict 因此可以原樣載入 `lstm`，只有 `weight_ih_l0` 的輸入欄位是依 robomimic 排序後的 key
+排列（§4）。
+
+### 10. Policy
+
+`RobomimicBCRNNPolicy` 依照 robomimic 的 `BC_RNN` 與 `BC_RNN_GMM` class（原 repo
+`robomimic/algo/bc.py:483`、`:578`）。測試會把相同權重載入 robomimic 的演算法，比對兩種
+head 的序列 loss，以及連續 25 步、跨越兩次狀態重設的 action（`tests/test_policy_bc_rnn.py`）。
+
+| Method                 | 行為                                                     | 來源                                                                                                 |
+| ---------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `forward`              | 每段序列每一步的 action head loss，包含補值的步          | 原 repo `robomimic/algo/bc.py:630`、`:652`（`BC_RNN_GMM`）；`BC_RNN` 沿用 `BC` 的 loss（`:182-192`） |
+| `select_action`        | 從保留的狀態跑一步 LSTM；在第 0、10、20 步等之前清空狀態 | 原 repo `robomimic/algo/bc.py:551`、`:565`                                                           |
+| `reset`                | 清空 LSTM 狀態與步數                                     | 原 repo `robomimic/algo/bc.py:570-575`                                                               |
+| `predict_action_chunk` | 不支援                                                   | 本專案：每個 action 都會推進 LSTM 狀態，而指南允許不做 chunk 的 policy 拋出 `NotImplementedError`    |
+
+LSTM 狀態不會延續整個 episode：robomimic 在推論時每 `rnn_horizon` 步清空一次，和訓練時
+10 步的序列長度一致。
+
+這個 policy 和 BC 一樣，用 `ObservationEncoder.from_config` 與 `make_action_head` 建立
+encoder 與 action head。

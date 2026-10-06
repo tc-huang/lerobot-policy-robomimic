@@ -6,7 +6,7 @@ from lerobot.policies import PreTrainedPolicy
 from lerobot.utils.constants import ACTION
 from torch import Tensor, nn
 
-from .action_heads import ActionHead, DeterministicHead, GMMHead
+from .action_heads import make_action_head
 from .configuration_robomimic_bc import RobomimicBCConfig
 from .mlp import MLP
 from .observation_encoder import ObservationEncoder
@@ -22,24 +22,9 @@ class RobomimicBCPolicy(PreTrainedPolicy):
         super().__init__(config)
         config.validate_features()
         self.config = config
-        self.encoder = ObservationEncoder(
-            config.observation_features,
-            config.crop_shape,
-            config.spatial_softmax_num_kp,
-            config.image_feature_dim,
-        )
+        self.encoder = ObservationEncoder.from_config(config)
         self.mlp = MLP(self.encoder.output_dim, config.actor_layer_dims)
-        self.action_head = self.make_action_head(config, self.mlp.output_dim)
-
-    @staticmethod
-    def make_action_head(config: RobomimicBCConfig, input_dim: int) -> ActionHead:
-        """Returns the GMM head or the deterministic head that `config` asks for."""
-        action_dim = config.action_feature.shape[0]
-        if config.use_gmm:
-            return GMMHead(
-                input_dim, action_dim, config.gmm_num_modes, config.gmm_min_std, config.gmm_low_noise_eval
-            )
-        return DeterministicHead(input_dim, action_dim, config.l2_weight, config.l1_weight, config.cos_weight)
+        self.action_head = make_action_head(config, self.mlp.output_dim)
 
     def reset(self) -> None:
         """BC keeps no state between steps."""
