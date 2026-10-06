@@ -1,9 +1,10 @@
 import pytest
 from lerobot.configs import FeatureType, PolicyFeature
-from lerobot.optim import AdamConfig
+from lerobot.optim import AdamConfig, AdamWConfig
 from lerobot.utils.constants import ACTION, OBS_ENV_STATE, OBS_IMAGES, OBS_STATE
 
-from lerobot_policy_robomimic import RobomimicBCConfig, RobomimicBCRNNConfig
+from lerobot_policy_robomimic import RobomimicBCConfig, RobomimicBCRNNConfig, RobomimicBCTransformerConfig
+from lerobot_policy_robomimic.schedulers import RobomimicLinearSchedulerConfig
 
 STATE = PolicyFeature(type=FeatureType.STATE, shape=(9,))
 ENV_STATE = PolicyFeature(type=FeatureType.ENV, shape=(10,))
@@ -11,7 +12,7 @@ IMAGE = PolicyFeature(type=FeatureType.VISUAL, shape=(3, 84, 84))
 ACTION_FEATURE = PolicyFeature(type=FeatureType.ACTION, shape=(7,))
 
 
-@pytest.fixture(params=[RobomimicBCConfig, RobomimicBCRNNConfig])
+@pytest.fixture(params=[RobomimicBCConfig, RobomimicBCRNNConfig, RobomimicBCTransformerConfig])
 def config_class(request):
     return request.param
 
@@ -66,11 +67,21 @@ def test_reads_one_observation_per_step(config_class):
         make_config(config_class, n_obs_steps=2)
 
 
-def test_optimizer_matches_robomimic(config_class):
+@pytest.mark.parametrize("config_class", [RobomimicBCConfig, RobomimicBCRNNConfig])
+def test_bc_and_bc_rnn_use_constant_adam(config_class):
     optimizer = make_config(config_class).get_optimizer_preset()
 
     assert optimizer == AdamConfig(lr=1e-4, weight_decay=0.0, grad_clip_norm=0.0)
     assert make_config(config_class).get_scheduler_preset() is None
+
+
+def test_bc_transformer_uses_adamw_with_a_linear_decay():
+    config = make_config(RobomimicBCTransformerConfig)
+
+    assert config.get_optimizer_preset() == AdamWConfig(lr=1e-4, weight_decay=0.01, grad_clip_norm=0.0)
+    assert config.get_scheduler_preset() == RobomimicLinearSchedulerConfig(
+        decay_epochs=100, decay_factor=0.1, steps_per_epoch=100
+    )
 
 
 def test_bc_reads_single_steps():
@@ -85,3 +96,15 @@ def test_bc_rnn_reads_sequences_of_rnn_horizon():
 
     assert config.observation_delta_indices == [0, 1, 2, 3]
     assert config.action_delta_indices == [0, 1, 2, 3]
+
+
+def test_bc_transformer_reads_its_context_and_one_action():
+    config = make_config(RobomimicBCTransformerConfig, transformer_context_length=3)
+
+    assert config.observation_delta_indices == [-2, -1, 0]
+    assert config.action_delta_indices is None
+
+
+def test_bc_transformer_heads_must_divide_the_width():
+    with pytest.raises(ValueError, match="divisible"):
+        make_config(RobomimicBCTransformerConfig, transformer_embed_dim=100, transformer_num_heads=8)

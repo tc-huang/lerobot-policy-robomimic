@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 from lerobot.configs import FeatureType, NormalizationMode, PolicyFeature, PreTrainedConfig
 from lerobot.optim import AdamConfig
+from lerobot.optim.schedulers import LRSchedulerConfig
 
 
 @dataclass
@@ -98,7 +99,7 @@ class RobomimicPolicyConfig(PreTrainedConfig):
             grad_clip_norm=self.optimizer_grad_clip_norm,
         )
 
-    def get_scheduler_preset(self) -> None:
+    def get_scheduler_preset(self) -> LRSchedulerConfig | None:
         return None
 
     @property

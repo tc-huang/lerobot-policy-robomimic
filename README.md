@@ -436,3 +436,43 @@ simulation are not measured yet.
 BC-Transformer is not part of robomimic's paper; robomimic added it in v0.3
 (Repo commit `40e427a`). It reuses the camera encoder (§3), the observation
 encoder (§4), and the action heads (§5) of BC.
+
+### 13. Configuration
+
+`RobomimicBCTransformerConfig` registers the policy type
+`robomimic_bc_transformer` and keeps the shared settings of §2. The paper has
+no BC-Transformer, so the transformer, optimizer, and schedule defaults follow
+the template that robomimic's transformer tutorial calls tuned (Repo
+`docs/tutorials/training_transformers.md`,
+`robomimic/config/default_templates/bc_transformer.json`, cited below as
+"template"). `tests/test_paper_defaults.py` checks them against that template,
+loaded as `robomimic/scripts/train.py:475-479` loads a config.
+
+| Setting                 | Default                                            | Config field                                                                              | Source                                                                                                                    |
+| ----------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Observations seen       | The current step and the 9 before it               | `transformer_context_length` (10), `observation_delta_indices`                            | Template `:47` (`seq_length` 1), `:49` (`frame_stack` 10); Repo `robomimic/config/bc_config.py:97`                        |
+| Steps before an episode | Copies of its first frame                          | (fixed)                                                                                   | Repo `robomimic/utils/dataset.py:557-576`; LeRobot clamps indices to the episode start (`datasets/dataset_reader.py:223`) |
+| Supervised action       | The current step's only                            | `action_delta_indices` (None)                                                             | Repo `robomimic/algo/bc.py:734`; `supervise_all_steps` is off (`robomimic/config/bc_config.py:106`)                       |
+| Transformer size        | Width 512, 6 blocks, 8 heads                       | `transformer_embed_dim`, `transformer_num_layers`, `transformer_num_heads`                | Repo `robomimic/config/bc_config.py:98-100`                                                                               |
+| Dropout                 | 0.1 on embeddings, attention, and block outputs    | `transformer_emb_dropout`, `transformer_attn_dropout`, `transformer_block_output_dropout` | Repo `robomimic/config/bc_config.py:101-103`                                                                              |
+| Optimizer               | AdamW, learning rate 1e-4, weight decay 0.01       | `get_optimizer_preset()`, `optimizer_lr`, `optimizer_weight_decay` (0.01)                 | Template `:63`, `:65`, `:71`                                                                                              |
+| Learning rate schedule  | Falls linearly to 0.1× over 100 epochs, then stays | `scheduler_decay_epochs` (100), `scheduler_decay_factor` (0.1)                            | Template `:66-68`; Repo `robomimic/utils/torch_utils.py:146-157`                                                          |
+| Epoch length            | 100 optimizer steps                                | `scheduler_steps_per_epoch` (100)                                                         | Template `:21` (`epoch_every_n_steps`)                                                                                    |
+
+robomimic updates its learning rate schedule once at the end of every epoch
+(Repo `robomimic/algo/algo.py:313-315`, called from
+`robomimic/scripts/train.py:311`), while LeRobot steps a scheduler after every
+optimizer step (LeRobot `scripts/lerobot_train.py:193`) and has no epochs.
+`RobomimicLinearSchedulerConfig` in `lerobot_policy_robomimic/schedulers.py`,
+registered as the scheduler type `robomimic_linear`, therefore counts steps
+in epochs of `scheduler_steps_per_epoch` and keeps the learning rate fixed
+within each one. `tests/test_schedulers.py` compares it step by step with
+robomimic's own scheduler stepped once per epoch.
+
+The template trains on low-dim data with batch size 100 for 2000 epochs of
+100 steps (200K steps; template `:56-57`, `:21`); pass these to
+`lerobot-train`.
+
+robomimic's options to supervise every step (`supervise_all_steps`), predict
+future actions (`pred_future_acs`), use sinusoidal or `nn.Embedding` position
+embeddings, or use GEGLU are off in the template and are not ported.

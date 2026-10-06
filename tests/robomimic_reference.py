@@ -4,9 +4,12 @@ import pytest
 
 pytest.importorskip("robomimic", reason="third_party/robomimic submodule is not checked out")
 
+import json  # noqa: E402
 from collections import OrderedDict  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 import robomimic.utils.obs_utils as obs_utils  # noqa: E402
+import robomimic.utils.torch_utils as torch_utils  # noqa: E402
 import torch  # noqa: E402
 from lerobot.configs import FeatureType, PolicyFeature  # noqa: E402
 from lerobot.utils.constants import OBS_IMAGES, OBS_STATE  # noqa: E402
@@ -128,6 +131,33 @@ def bc_rnn_config(hdf5_type: str = "image"):
     These experiments use a GMM head (`robomimic/scripts/generate_paper_configs.py:415`).
     """
     return modify_bc_rnn_config_for_dataset(image_experiment_config(), "lift", "ph", hdf5_type)
+
+
+def bc_transformer_template_config():
+    """Returns robomimic's tuned BC-Transformer config, loaded as `robomimic/scripts/train.py:475-479` does.
+
+    `docs/tutorials/training_transformers.md` points to this template for transformer policies.
+    """
+    path = Path(torch_utils.__file__).parents[1] / "config/default_templates/bc_transformer.json"
+    config = config_factory("bc")
+    with config.values_unlocked():
+        config.update(json.loads(path.read_text()))
+    return config
+
+
+def linear_lr_scheduler(optimizer, decay_epochs: int, decay_factor: float):
+    """Returns robomimic's "linear" learning rate scheduler, which robomimic steps once per epoch."""
+    optim_params = {
+        "learning_rate": {
+            "initial": optimizer.param_groups[0]["lr"],
+            "decay_factor": decay_factor,
+            "epoch_schedule": [decay_epochs],
+            "scheduler_type": "linear",
+        },
+        "num_train_batches": None,
+        "num_epochs": None,
+    }
+    return torch_utils.lr_scheduler_from_optim_params(optim_params, net=None, optimizer=optimizer)
 
 
 def bc_rnn_algo(obs_shapes: dict[str, list[int]], action_dim: int, gmm: bool) -> BC:

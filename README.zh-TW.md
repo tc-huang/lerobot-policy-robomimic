@@ -390,3 +390,39 @@ branch 的資料訓練，因此部分誤差可能來自這個差異。模擬環�
 
 BC-Transformer 不在 robomimic 的論文中，是 robomimic 在 v0.3 加入的（原 repo commit
 `40e427a`）。它重用 BC 的相機 encoder（§3）、observation encoder（§4）與 action head（§5）。
+
+### 13. Configuration
+
+`RobomimicBCTransformerConfig` 註冊 policy type `robomimic_bc_transformer`，並沿用 §2 的
+共用設定。論文沒有 BC-Transformer，因此 transformer、optimizer 與 schedule 的預設值沿用
+robomimic transformer 教學稱為「調好參數」的 template（原 repo
+`docs/tutorials/training_transformers.md`、
+`robomimic/config/default_templates/bc_transformer.json`，下表稱為「template」）。
+`tests/test_paper_defaults.py` 會以 `robomimic/scripts/train.py:475-479` 載入 config 的方式
+讀取該 template 並比對。
+
+| 設定                   | 預設值                                       | Config 欄位                                                                               | 來源                                                                                                                 |
+| ---------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 看到的 observation     | 當下這一步與之前的 9 步                      | `transformer_context_length`（10）、`observation_delta_indices`                           | template `:47`（`seq_length` 1）、`:49`（`frame_stack` 10）；原 repo `robomimic/config/bc_config.py:97`              |
+| episode 開始前的步     | 以第一個 frame 補齊                          | （固定）                                                                                  | 原 repo `robomimic/utils/dataset.py:557-576`；LeRobot 把 index 夾到 episode 開頭（`datasets/dataset_reader.py:223`） |
+| 監督的 action          | 只有當下這一步                               | `action_delta_indices`（None）                                                            | 原 repo `robomimic/algo/bc.py:734`；`supervise_all_steps` 為關閉（`robomimic/config/bc_config.py:106`）              |
+| Transformer 大小       | 寬度 512、6 個 block、8 個 head              | `transformer_embed_dim`、`transformer_num_layers`、`transformer_num_heads`                | 原 repo `robomimic/config/bc_config.py:98-100`                                                                       |
+| Dropout                | embedding、attention 與 block 輸出都是 0.1   | `transformer_emb_dropout`、`transformer_attn_dropout`、`transformer_block_output_dropout` | 原 repo `robomimic/config/bc_config.py:101-103`                                                                      |
+| Optimizer              | AdamW，learning rate 1e-4，weight decay 0.01 | `get_optimizer_preset()`、`optimizer_lr`、`optimizer_weight_decay`（0.01）                | template `:63`、`:65`、`:71`                                                                                         |
+| Learning rate schedule | 100 個 epoch 內線性降到 0.1 倍，之後維持     | `scheduler_decay_epochs`（100）、`scheduler_decay_factor`（0.1）                          | template `:66-68`；原 repo `robomimic/utils/torch_utils.py:146-157`                                                  |
+| Epoch 長度             | 100 次 optimizer 更新                        | `scheduler_steps_per_epoch`（100）                                                        | template `:21`（`epoch_every_n_steps`）                                                                              |
+
+robomimic 在每個 epoch 結束時才更新一次 learning rate schedule（原 repo
+`robomimic/algo/algo.py:313-315`，由 `robomimic/scripts/train.py:311` 呼叫），而 LeRobot 在
+每次 optimizer 更新後都會呼叫 scheduler（LeRobot `scripts/lerobot_train.py:193`），也沒有
+epoch 的概念。因此 `lerobot_policy_robomimic/schedulers.py` 中的
+`RobomimicLinearSchedulerConfig`（註冊為 scheduler type `robomimic_linear`）以
+`scheduler_steps_per_epoch` 步為一個 epoch 計數，並在每個 epoch 內固定 learning rate。
+`tests/test_schedulers.py` 會和每個 epoch 呼叫一次的 robomimic scheduler 逐步比對。
+
+template 是 low-dim 資料的設定：batch size 100，訓練 2000 個 epoch、每個 epoch 100 步
+（共 20 萬步；template `:56-57`、`:21`），這些要傳給 `lerobot-train`。
+
+robomimic 中監督每一步（`supervise_all_steps`）、預測未來 action（`pred_future_acs`）、
+sinusoidal 或 `nn.Embedding` 位置編碼，以及 GEGLU 的選項，在 template 中都是關閉的，因此
+不移植。

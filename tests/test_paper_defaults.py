@@ -1,13 +1,11 @@
 import robomimic_reference
 
-from lerobot_policy_robomimic import RobomimicBCConfig, RobomimicBCRNNConfig
+from lerobot_policy_robomimic import RobomimicBCConfig, RobomimicBCRNNConfig, RobomimicBCTransformerConfig
 
 
 def assert_shared_defaults_match(ours, paper):
     rgb = paper.observation.encoder.rgb
-    assert ours.actor_layer_dims == tuple(paper.algo.actor_layer_dims)
     assert ours.optimizer_lr == paper.algo.optim_params.policy.learning_rate.initial
-    assert list(paper.algo.optim_params.policy.learning_rate.epoch_schedule) == []
     assert ours.optimizer_weight_decay == paper.algo.optim_params.policy.regularization.L2
     assert paper.train.max_grad_norm is None and ours.optimizer_grad_clip_norm == 0
     assert ours.use_gmm == paper.algo.gmm.enabled
@@ -26,7 +24,12 @@ def assert_shared_defaults_match(ours, paper):
 
 
 def test_bc_defaults_match_robomimic_image_experiment():
-    assert_shared_defaults_match(RobomimicBCConfig(device="cpu"), robomimic_reference.bc_config())
+    ours = RobomimicBCConfig(device="cpu")
+    paper = robomimic_reference.bc_config()
+
+    assert_shared_defaults_match(ours, paper)
+    assert ours.actor_layer_dims == tuple(paper.algo.actor_layer_dims)
+    assert list(paper.algo.optim_params.policy.learning_rate.epoch_schedule) == []
 
 
 def test_bc_rnn_defaults_match_robomimic_image_experiment():
@@ -34,6 +37,8 @@ def test_bc_rnn_defaults_match_robomimic_image_experiment():
     paper = robomimic_reference.bc_rnn_config()
 
     assert_shared_defaults_match(ours, paper)
+    assert ours.actor_layer_dims == tuple(paper.algo.actor_layer_dims)
+    assert list(paper.algo.optim_params.policy.learning_rate.epoch_schedule) == []
     assert paper.algo.rnn.enabled and paper.algo.rnn.rnn_type == "LSTM"
     assert not paper.algo.rnn.kwargs.bidirectional and not paper.algo.rnn.open_loop
     assert ours.rnn_hidden_dim == paper.algo.rnn.hidden_dim
@@ -43,3 +48,29 @@ def test_bc_rnn_defaults_match_robomimic_image_experiment():
 
 def test_bc_rnn_low_dim_experiment_uses_a_smaller_lstm():
     assert robomimic_reference.bc_rnn_config("low_dim").algo.rnn.hidden_dim == 400
+
+
+def test_bc_transformer_defaults_match_robomimic_template():
+    ours = RobomimicBCTransformerConfig(device="cpu")
+    template = robomimic_reference.bc_transformer_template_config()
+    transformer = template.algo.transformer
+    learning_rate = template.algo.optim_params.policy.learning_rate
+
+    assert_shared_defaults_match(ours, template)
+    assert transformer.enabled and not template.algo.rnn.enabled
+    assert ours.transformer_context_length == transformer.context_length == template.train.frame_stack
+    assert template.train.seq_length == 1
+    assert ours.transformer_embed_dim == transformer.embed_dim
+    assert ours.transformer_num_layers == transformer.num_layers
+    assert ours.transformer_num_heads == transformer.num_heads
+    assert ours.transformer_emb_dropout == transformer.emb_dropout
+    assert ours.transformer_attn_dropout == transformer.attn_dropout
+    assert ours.transformer_block_output_dropout == transformer.block_output_dropout
+    assert transformer.activation == "gelu" and not transformer.sinusoidal_embedding
+    assert transformer.nn_parameter_for_timesteps
+    assert not transformer.supervise_all_steps and not transformer.pred_future_acs
+    assert template.algo.optim_params.policy.optimizer_type == "adamw"
+    assert learning_rate.scheduler_type == "linear"
+    assert [ours.scheduler_decay_epochs] == list(learning_rate.epoch_schedule)
+    assert ours.scheduler_decay_factor == learning_rate.decay_factor
+    assert ours.scheduler_steps_per_epoch == template.experiment.epoch_every_n_steps
