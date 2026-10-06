@@ -80,7 +80,9 @@ robomimic 以 MIT License 釋出。本專案重新實作其網路，執行時不
 ### 2. Configuration
 
 `RobomimicBCConfig` 註冊 policy type `robomimic_bc`。預設值沿用 robomimic 在
-proficient-human（PH）資料集上的 image 實驗設定。
+proficient-human（PH）資料集上的 image 實驗設定。下表中除了 `actor_layer_dims` 以外的設定，
+都來自 `lerobot_policy_robomimic/base_config.py` 的 `RobomimicPolicyConfig`，由本專案所有
+robomimic policy 共用；它本身不是 policy type。
 
 | 設定                     | 預設值                                 | Config 欄位                                           | 來源                                                                                                                                                                             |
 | ------------------------ | -------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -240,3 +242,30 @@ checkpoint，並連同 processor 讀回後執行 `select_action`。`lerobot-trai
 
 BC-RNN 是 robomimic 論文的主力 policy。它重用 BC 的相機 encoder（§3）、observation
 encoder（§4）與 action head（§5）。
+
+### 8. Configuration
+
+`RobomimicBCRNNConfig` 註冊 policy type `robomimic_bc_rnn`。它沿用 §2 的共用設定（robomimic
+的 BC-RNN 實驗也使用相同設定），並新增下列設定。預設值沿用 PH 資料上的 image 實驗；
+`tests/test_paper_defaults.py` 會和 robomimic 自己的 config 比對。
+
+| 設定             | 預設值                                | Config 欄位                                                        | 來源                                                                                  |
+| ---------------- | ------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| Recurrent 網路   | 單向 LSTM                             | （固定）                                                           | 原 repo `robomimic/config/bc_config.py:89`、`:92`                                     |
+| LSTM 層數        | 2                                     | `rnn_num_layers`                                                   | 原 repo `robomimic/config/bc_config.py:90`                                            |
+| LSTM hidden size | image 資料為 1000；low-dim 資料為 400 | `rnn_hidden_dim`（1000）                                           | 原 repo `robomimic/scripts/generate_paper_configs.py:428`（image）、`:416`（low-dim） |
+| LSTM 之後的 MLP  | 無                                    | `actor_layer_dims`（()）                                           | 原 repo `robomimic/scripts/generate_paper_configs.py:414`                             |
+| 序列長度         | 10 步的 observation 與 action         | `rnn_horizon`、`observation_delta_indices`、`action_delta_indices` | 原 repo `robomimic/scripts/generate_paper_configs.py:405`、`:409-410`                 |
+| 推論時重設狀態   | 每 10 步                              | `rnn_horizon`                                                      | 原 repo `robomimic/scripts/generate_paper_configs.py:410`                             |
+
+robomimic 把序列長度（`train.seq_length`）與重設週期（`algo.rnn.horizon`）分開設定，但論文
+把兩者都設為 10，其 config 也註明兩者通常應該相同（`robomimic/config/bc_config.py:87`）。
+本專案用同一個欄位 `rnn_horizon` 表示兩者。
+
+demo 中每個 frame 都是一段訓練序列的起點；序列超出 demo 結尾時會重複最後一個 frame
+（原 repo `robomimic/utils/dataset.py:225`、`:557-576`）。LeRobot 依 delta index 建立相同的
+序列：它同樣以每個 frame 為起點，並把超出結尾的 index 夾到最後一個 frame
+（LeRobot `datasets/dataset_reader.py:223`）。
+
+robomimic 的 open-loop 模式（`robomimic/config/bc_config.py:91`）、GRU 與雙向 LSTM，
+論文實驗都沒有使用，因此不移植。

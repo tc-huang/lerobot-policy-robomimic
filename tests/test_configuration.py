@@ -3,7 +3,7 @@ from lerobot.configs import FeatureType, PolicyFeature
 from lerobot.optim import AdamConfig
 from lerobot.utils.constants import ACTION, OBS_ENV_STATE, OBS_IMAGES, OBS_STATE
 
-from lerobot_policy_robomimic import RobomimicBCConfig
+from lerobot_policy_robomimic import RobomimicBCConfig, RobomimicBCRNNConfig
 
 STATE = PolicyFeature(type=FeatureType.STATE, shape=(9,))
 ENV_STATE = PolicyFeature(type=FeatureType.ENV, shape=(10,))
@@ -11,13 +11,18 @@ IMAGE = PolicyFeature(type=FeatureType.VISUAL, shape=(3, 84, 84))
 ACTION_FEATURE = PolicyFeature(type=FeatureType.ACTION, shape=(7,))
 
 
-def make_config(**kwargs):
+@pytest.fixture(params=[RobomimicBCConfig, RobomimicBCRNNConfig])
+def config_class(request):
+    return request.param
+
+
+def make_config(config_class=RobomimicBCConfig, **kwargs):
     inputs = {
         OBS_STATE: STATE,
         OBS_ENV_STATE: ENV_STATE,
         f"{OBS_IMAGES}.agentview": IMAGE,
     }
-    return RobomimicBCConfig(
+    return config_class(
         device="cpu",
         input_features=kwargs.pop("input_features", inputs),
         output_features={ACTION: ACTION_FEATURE},
@@ -25,42 +30,58 @@ def make_config(**kwargs):
     )
 
 
-def test_image_experiment_ignores_env_state():
-    config = make_config()
+def test_image_experiment_ignores_env_state(config_class):
+    config = make_config(config_class)
     config.validate_features()
 
     assert list(config.observation_features) == [OBS_STATE, f"{OBS_IMAGES}.agentview"]
 
 
-def test_low_dim_experiment_reads_env_state():
-    config = make_config(input_features={OBS_STATE: STATE, OBS_ENV_STATE: ENV_STATE}, use_env_state=True)
+def test_low_dim_experiment_reads_env_state(config_class):
+    config = make_config(
+        config_class, input_features={OBS_STATE: STATE, OBS_ENV_STATE: ENV_STATE}, use_env_state=True
+    )
     config.validate_features()
 
     assert list(config.observation_features) == [OBS_STATE, OBS_ENV_STATE]
 
 
-def test_use_env_state_requires_the_feature():
+def test_use_env_state_requires_the_feature(config_class):
     with pytest.raises(ValueError, match="use_env_state"):
-        make_config(input_features={OBS_STATE: STATE}, use_env_state=True).validate_features()
+        make_config(config_class, input_features={OBS_STATE: STATE}, use_env_state=True).validate_features()
 
 
-def test_requires_an_input_it_reads():
+def test_requires_an_input_it_reads(config_class):
     with pytest.raises(ValueError, match="at least one input"):
-        make_config(input_features={OBS_ENV_STATE: ENV_STATE}).validate_features()
+        make_config(config_class, input_features={OBS_ENV_STATE: ENV_STATE}).validate_features()
 
 
-def test_crop_must_fit_inside_images():
+def test_crop_must_fit_inside_images(config_class):
     with pytest.raises(ValueError, match="crop_shape"):
-        make_config(crop_shape=(84, 76)).validate_features()
+        make_config(config_class, crop_shape=(84, 76)).validate_features()
 
 
-def test_bc_reads_a_single_observation():
+def test_reads_one_observation_per_step(config_class):
     with pytest.raises(ValueError, match="n_obs_steps"):
-        make_config(n_obs_steps=2)
+        make_config(config_class, n_obs_steps=2)
 
 
-def test_optimizer_matches_robomimic():
-    optimizer = make_config().get_optimizer_preset()
+def test_optimizer_matches_robomimic(config_class):
+    optimizer = make_config(config_class).get_optimizer_preset()
 
     assert optimizer == AdamConfig(lr=1e-4, weight_decay=0.0, grad_clip_norm=0.0)
-    assert make_config().get_scheduler_preset() is None
+    assert make_config(config_class).get_scheduler_preset() is None
+
+
+def test_bc_reads_single_steps():
+    config = make_config(RobomimicBCConfig)
+
+    assert config.observation_delta_indices is None
+    assert config.action_delta_indices is None
+
+
+def test_bc_rnn_reads_sequences_of_rnn_horizon():
+    config = make_config(RobomimicBCRNNConfig, rnn_horizon=4)
+
+    assert config.observation_delta_indices == [0, 1, 2, 3]
+    assert config.action_delta_indices == [0, 1, 2, 3]

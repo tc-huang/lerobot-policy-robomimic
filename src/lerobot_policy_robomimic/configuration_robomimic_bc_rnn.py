@@ -1,31 +1,34 @@
 from dataclasses import dataclass
 
 from lerobot.configs import PreTrainedConfig
-from lerobot.optim import AdamConfig
+
+from .base_config import RobomimicPolicyConfig
 
 
 @PreTrainedConfig.register_subclass("robomimic_bc_rnn")
 @dataclass
-class RobomimicBCRNNConfig(PreTrainedConfig):
-    """Configuration for robomimic's BC-RNN policy."""
+class RobomimicBCRNNConfig(RobomimicPolicyConfig):
+    """Configuration for robomimic's BC-RNN policy.
 
-    def validate_features(self) -> None:
-        pass
+    For robomimic's low-dim experiments, also set `rnn_hidden_dim=400`.
 
-    def get_optimizer_preset(self) -> AdamConfig:
-        return AdamConfig()
+    Args:
+        actor_layer_dims: Hidden sizes of the MLP between the LSTM and the action head.
+        rnn_hidden_dim: Hidden size of each LSTM layer.
+        rnn_num_layers: Number of stacked LSTM layers.
+        rnn_horizon: Length of the training sequences, and the number of steps after which
+            the LSTM state is reset at inference.
+    """
 
-    def get_scheduler_preset(self) -> None:
-        return None
-
-    @property
-    def observation_delta_indices(self) -> None:
-        return None
-
-    @property
-    def action_delta_indices(self) -> None:
-        return None
+    actor_layer_dims: tuple[int, ...] = ()
+    rnn_hidden_dim: int = 1000
+    rnn_num_layers: int = 2
+    rnn_horizon: int = 10
 
     @property
-    def reward_delta_indices(self) -> None:
-        return None
+    def observation_delta_indices(self) -> list[int]:
+        return list(range(self.rnn_horizon))
+
+    @property
+    def action_delta_indices(self) -> list[int]:
+        return list(range(self.rnn_horizon))

@@ -18,6 +18,7 @@ from robomimic.models.obs_core import CropRandomizer, VisualCore  # noqa: E402
 from robomimic.models.obs_nets import ObservationEncoder, obs_encoder_factory  # noqa: E402
 from robomimic.scripts.generate_paper_configs import (  # noqa: E402
     modify_bc_config_for_dataset,
+    modify_bc_rnn_config_for_dataset,
     modify_config_for_default_image_exp,
 )
 from robomimic.utils.python_utils import extract_class_init_kwargs_from_dict  # noqa: E402
@@ -116,6 +117,14 @@ def bc_config(gmm: bool = True, **loss_weights: float):
         for name, weight in loss_weights.items():
             config.algo.loss[name] = weight
     return config
+
+
+def bc_rnn_config(hdf5_type: str = "image"):
+    """Returns robomimic's config for BC-RNN in the experiments on proficient-human Lift data.
+
+    These experiments use a GMM head (`robomimic/scripts/generate_paper_configs.py:415`).
+    """
+    return modify_bc_rnn_config_for_dataset(image_experiment_config(), "lift", "ph", hdf5_type)
 
 
 def bc_algo(obs_shapes: dict[str, list[int]], action_dim: int, gmm: bool, **loss_weights: float) -> BC:

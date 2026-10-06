@@ -84,7 +84,10 @@ networks instead of importing robomimic at runtime.
 ### 2. Configuration
 
 `RobomimicBCConfig` registers the policy type `robomimic_bc`. Defaults follow
-robomimic's image experiments on the proficient-human (PH) datasets.
+robomimic's image experiments on the proficient-human (PH) datasets. Every
+setting below except `actor_layer_dims` comes from `RobomimicPolicyConfig` in
+`lerobot_policy_robomimic/base_config.py`, which all robomimic policies here
+share; it is not a policy type itself.
 
 | Setting                        | Default                                             | Config field                                       | Source                                                                                                                                                                                   |
 | ------------------------------ | --------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -261,3 +264,34 @@ the `training` extra, as in `lerobot_policy_openvla_oft`.
 
 BC-RNN is robomimic's main policy in its paper. It reuses the camera encoder
 (§3), the observation encoder (§4), and the action heads (§5) of BC.
+
+### 8. Configuration
+
+`RobomimicBCRNNConfig` registers the policy type `robomimic_bc_rnn`. It keeps
+the shared settings of §2, which robomimic's BC-RNN experiments also use, and
+adds the settings below. Defaults follow the image experiments on PH data;
+`tests/test_paper_defaults.py` checks them against robomimic's own config.
+
+| Setting                  | Default                                   | Config field                                                       | Source                                                                           |
+| ------------------------ | ----------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| Recurrent network        | LSTM, one direction                       | (fixed)                                                            | Repo `robomimic/config/bc_config.py:89`, `:92`                                   |
+| LSTM layers              | 2                                         | `rnn_num_layers`                                                   | Repo `robomimic/config/bc_config.py:90`                                          |
+| LSTM hidden size         | 1000 for image data; 400 for low-dim data | `rnn_hidden_dim` (1000)                                            | Repo `robomimic/scripts/generate_paper_configs.py:428` (image), `:416` (low-dim) |
+| MLP after the LSTM       | None                                      | `actor_layer_dims` (())                                            | Repo `robomimic/scripts/generate_paper_configs.py:414`                           |
+| Sequence length          | 10 steps of observations and actions      | `rnn_horizon`, `observation_delta_indices`, `action_delta_indices` | Repo `robomimic/scripts/generate_paper_configs.py:405`, `:409-410`               |
+| State reset at inference | Every 10 steps                            | `rnn_horizon`                                                      | Repo `robomimic/scripts/generate_paper_configs.py:410`                           |
+
+robomimic sets the sequence length (`train.seq_length`) and the reset period
+(`algo.rnn.horizon`) separately, but its paper sets both to 10 and its config
+notes that they should usually match (`robomimic/config/bc_config.py:87`).
+This port uses one field, `rnn_horizon`, for both.
+
+Every frame of a demo starts a training sequence, and a sequence that runs
+past the end of its demo repeats the last frame (Repo
+`robomimic/utils/dataset.py:225`, `:557-576`). LeRobot builds the same
+sequences from the delta indices: it also starts one at every frame and clamps
+indices past the end to the last frame (LeRobot
+`datasets/dataset_reader.py:223`).
+
+robomimic's open-loop mode (`robomimic/config/bc_config.py:91`), GRU, and
+bidirectional LSTMs are not used by the paper experiments and are not ported.
