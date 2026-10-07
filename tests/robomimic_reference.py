@@ -26,7 +26,7 @@ from robomimic.scripts.generate_paper_configs import (  # noqa: E402
 )
 from robomimic.utils.python_utils import extract_class_init_kwargs_from_dict  # noqa: E402
 
-from lerobot_policy_robomimic.language import OBS_LANGUAGE_EMBEDDING  # noqa: E402
+from lerobot_policy_robomimic.policies.common.language import OBS_LANGUAGE_EMBEDDING  # noqa: E402
 
 STATE_KEYS = {"robot0_eef_pos": 3, "robot0_eef_quat": 4, "robot0_gripper_qpos": 2}
 LANG_EMB = "lang_emb"

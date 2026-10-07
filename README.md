@@ -23,7 +23,7 @@ LeRobotDataset. Image files are generated from robomimic's raw files with its
 `dataset_states_to_obs.py` (Repo `robomimic/scripts/extract_obs_from_raw_datasets.sh:59-61`).
 
 ```bash
-uv run python -m lerobot_policy_robomimic.convert_dataset \
+uv run python -m lerobot_policy_robomimic.scripts.convert_dataset \
     --hdf5 data/robomimic/lift/ph/image_v15.hdf5 \
     --repo-id <user>/robomimic_lift_ph_image \
     --task "lift the cube"
@@ -88,7 +88,7 @@ LeRobot policy directory (§12):
 ```bash
 curl -L --create-dirs -o data/robomimic/model_zoo/lift_ph_image_epoch_500_succ_100.pth \
     http://downloads.cs.stanford.edu/downloads/rt_benchmark/model_zoo/lift/bc_rnn/lift_ph_image_epoch_500_succ_100.pth
-uv run python -m lerobot_policy_robomimic.convert_checkpoint \
+uv run python -m lerobot_policy_robomimic.scripts.convert_checkpoint \
     --checkpoint data/robomimic/model_zoo/lift_ph_image_epoch_500_succ_100.pth \
     --output-dir outputs/checkpoints/lift_ph_image_bc_rnn
 ```
@@ -109,10 +109,10 @@ uv run lerobot-eval \
 
 ## Datasets
 
-`lerobot_policy_robomimic/convert_dataset.py` turns a robomimic hdf5 file that
+`lerobot_policy_robomimic/scripts/convert_dataset.py` turns a robomimic hdf5 file that
 contains observations into a LeRobotDataset with one episode per demo. Tests
 check the converted values, pixels, episodes, and metadata against a small
-hdf5 file (`tests/test_convert_dataset.py`). Sources are cited as described
+hdf5 file (`tests/scripts/test_convert_dataset.py`). Sources are cited as described
 under Design.
 
 | Decision              | Choice                                                                                                          | Source                                                                                                                                                 |
@@ -141,9 +141,9 @@ the demos turn off `lite_physics`.
 
 ## Simulation
 
-`RobomimicEnvConfig` in `lerobot_policy_robomimic/env_config.py` registers the
+`RobomimicEnvConfig` in `lerobot_policy_robomimic/envs/configs.py` registers the
 LeRobot env type `robomimic`, and `RobomimicEnv` in
-`lerobot_policy_robomimic/robosuite_env.py` wraps robosuite the way robomimic's
+`lerobot_policy_robomimic/envs/robosuite.py` wraps robosuite the way robomimic's
 rollouts do. The env is rebuilt from the `meta/robomimic_env_args.json` of a
 converted dataset (§ Datasets), and robosuite is imported only when an env is
 built, so it stays in the `sim` extra. Sources are cited as described under
@@ -164,7 +164,7 @@ Design.
 
 Tests build robomimic's own `EnvRobosuite` from the same env args, reset both
 with the same seed, and compare five steps of images, proprioception, object
-state, reward, and success (`tests/test_env.py`). The comparison starts from
+state, reward, and success (`tests/envs/test_env.py`). The comparison starts from
 seeded resets rather than a copied simulator state, because robosuite's
 controllers and its visual markers keep state that a copied simulator state
 leaves behind.
@@ -193,13 +193,32 @@ networks instead of importing robomimic at runtime.
 
 ### 1. Policy types and package layout
 
-| Decision                      | Choice                                                                                                                                                                 | Source                                                                                                                                                                                                                 |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Policy types                  | `robomimic_bc` (BC), `robomimic_bc_rnn` (BC-RNN), `robomimic_bc_transformer` (BC-Transformer), `robomimic_bc_vae` (BC-VAE)                                             | This port: the `robomimic_` prefix avoids clashing with LeRobot's built-in types, such as `diffusion` (`policies/diffusion/`), which robomimic also implements (Repo `robomimic/algo/diffusion_policy.py`)             |
-| Class and function names      | `RobomimicBCConfig`, `RobomimicBCPolicy`, `make_robomimic_bc_pre_post_processors`; likewise for `robomimic_bc_rnn`, `robomimic_bc_transformer`, and `robomimic_bc_vae` | LeRobot: the policy class name is the config class name with `Config` replaced by `Policy` (`policies/factory.py:409-415`), and the processor factory is `make_<type>_pre_post_processors` (`policies/factory.py:458`) |
-| Module names                  | `configuration_<type>.py`, `modeling_<type>.py`, `processor_<type>.py`                                                                                                 | LeRobot: the modeling and processor modules are found by replacing `configuration_` in the config's module path (`policies/factory.py:416`, `:459`); the names follow the guide's template                             |
-| Distribution name             | `lerobot_policy_robomimic`                                                                                                                                             | LeRobot: an installed distribution whose name starts with `lerobot_policy_` is imported by that name (`utils/import_utils.py:231-255`), which runs `@PreTrainedConfig.register_subclass`                               |
-| Several policies, one package | Each robomimic algorithm gets its own policy type and its own three modules                                                                                            | This port: the guide shows one policy per package, but the factory only needs those three modules per type, so robomimic's algorithms can share one package and its networks                                           |
+| Decision                      | Choice                                                                                                                                                                 | Source                                                                                                                                                                                                                    |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Policy types                  | `robomimic_bc` (BC), `robomimic_bc_rnn` (BC-RNN), `robomimic_bc_transformer` (BC-Transformer), `robomimic_bc_vae` (BC-VAE)                                             | This port: the `robomimic_` prefix avoids clashing with LeRobot's built-in types, such as `diffusion` (`policies/diffusion/`), which robomimic also implements (Repo `robomimic/algo/diffusion_policy.py`)                |
+| Class and function names      | `RobomimicBCConfig`, `RobomimicBCPolicy`, `make_robomimic_bc_pre_post_processors`; likewise for `robomimic_bc_rnn`, `robomimic_bc_transformer`, and `robomimic_bc_vae` | LeRobot: the policy class name is the config class name with `Config` replaced by `Policy` (`policies/factory.py:409-415`), and the processor factory is `make_<type>_pre_post_processors` (`policies/factory.py:458`)    |
+| Module names                  | `policies/<name>/configuration_<type>.py`, `modeling_<type>.py`, `processor_<type>.py`                                                                                 | LeRobot: the modeling and processor modules are found by replacing `configuration_` in the config's module path (`policies/factory.py:416`, `:459`), so the three sit side by side; the names follow the guide's template |
+| Distribution name             | `lerobot_policy_robomimic`                                                                                                                                             | LeRobot: an installed distribution whose name starts with `lerobot_policy_` is imported by that name (`utils/import_utils.py:231-255`), which runs `@PreTrainedConfig.register_subclass`                                  |
+| Several policies, one package | Each robomimic algorithm gets its own policy type and its own three modules                                                                                            | This port: the guide shows one policy per package, but the factory only needs those three modules per type, so robomimic's algorithms can share one package and its networks                                              |
+| Package layout                | One subpackage per policy under `policies/`, shared parts in `policies/common/`, and `envs/` and `scripts/` beside them; `tests/` mirrors it                           | LeRobot's own layout: `policies/<name>/`, `policies/common/`, `envs/`, `scripts/`                                                                                                                                         |
+
+```
+src/lerobot_policy_robomimic/
+├── __init__.py          # registers every policy and the env with LeRobot
+├── policies/
+│   ├── common/          # config, camera and observation encoders, MLP, action heads,
+│   │                    # language, processors, and schedulers shared by the policies
+│   ├── bc/              # configuration_, modeling_, processor_robomimic_bc.py
+│   ├── bc_rnn/
+│   ├── bc_transformer/  # also transformer.py, used by this policy only
+│   └── bc_vae/          # also vae.py, used by this policy only
+├── envs/                # the robomimic env config and its robosuite wrapper
+└── scripts/             # dataset and checkpoint converters
+```
+
+A network that only one policy uses lives in that policy's subpackage.
+Everything the package exports, such as `RobomimicBCConfig`, is imported from
+`lerobot_policy_robomimic` itself.
 
 ## BC (`robomimic_bc`)
 
@@ -208,7 +227,7 @@ networks instead of importing robomimic at runtime.
 `RobomimicBCConfig` registers the policy type `robomimic_bc`. Defaults follow
 robomimic's image experiments on the proficient-human (PH) datasets. Every
 setting below except `actor_layer_dims` comes from
-`lerobot_policy_robomimic/base_config.py`, which holds two classes that are
+`lerobot_policy_robomimic/policies/common/config.py`, which holds two classes that are
 not policy types themselves: `RobomimicPolicyConfig`, with the observation,
 encoder, and optimizer settings that all robomimic policies here share, and
 its subclass `RobomimicActorConfig`, which adds the action head settings that
@@ -248,7 +267,7 @@ data (`robomimic/scripts/generate_paper_configs.py:113`, `:131-132`), and
 batch size 100 for 2000 epochs of 100 steps (200K steps) on low-dim data
 (`:43`, `:61-62`).
 
-`tests/test_paper_defaults.py` checks these defaults against robomimic's own
+`tests/policies/test_paper_defaults.py` checks these defaults against robomimic's own
 config for BC in the image experiments on PH Lift. `use_gmm=false` gives
 robomimic's plain `BC` class instead, which the paper uses only for
 machine-generated datasets (`robomimic/scripts/generate_paper_configs.py:370-372`).
@@ -257,11 +276,11 @@ use; its settings keep robomimic's defaults, which the same test checks.
 
 ### 3. Camera encoder
 
-`lerobot_policy_robomimic/vision.py` holds the camera encoder used by
+`lerobot_policy_robomimic/policies/common/vision.py` holds the camera encoder used by
 robomimic's image experiments, robomimic's `VisualCore`
 (Repo `robomimic/scripts/generate_paper_configs.py:151-160`). Tests compare
 each part with robomimic's own module on the same weights and inputs
-(`tests/test_vision.py`).
+(`tests/policies/common/test_vision.py`).
 
 | Part                | Behavior                                                                                       | This port        | Source                                                                                                                                                    |
 | ------------------- | ---------------------------------------------------------------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -301,11 +320,11 @@ encoding, and a learnable or noisy spatial softmax.
 
 ### 4. Observation encoder
 
-`lerobot_policy_robomimic/observation_encoder.py` turns every observation the
+`lerobot_policy_robomimic/policies/common/observation_encoder.py` turns every observation the
 policy reads into one feature vector, like robomimic's `ObservationEncoder`
 (Repo `robomimic/models/obs_nets.py:119`). A test loads the same camera
 weights into robomimic's encoder and compares the outputs
-(`tests/test_observation_encoder.py`).
+(`tests/policies/common/test_observation_encoder.py`).
 
 | Part                | Behavior                                                                                                                         | Source                                                                                                                                                                                                     |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -324,8 +343,8 @@ comparing.
 
 ### 5. MLP and action heads
 
-`MLP` in `lerobot_policy_robomimic/mlp.py` maps the encoded observations to
-features, and an action head in `lerobot_policy_robomimic/action_heads.py`
+`MLP` in `lerobot_policy_robomimic/policies/common/mlp.py` maps the encoded observations to
+features, and an action head in `lerobot_policy_robomimic/policies/common/action_heads.py`
 turns them into actions. Together they are robomimic's `ActorNetwork`
 (Repo `robomimic/models/policy_nets.py:26`), `GaussianActorNetwork` (`:193`), or
 `GMMActorNetwork` (`:397`),
@@ -381,7 +400,7 @@ robomimic's `BC`, `BC_Gaussian`, and `BC_GMM` classes (Repo
 `robomimic/algo/bc.py:78`, `:254`, `:347`). Tests load the same weights into
 robomimic's algorithms, reordering the input columns of the first MLP layer as
 in §4, and compare the losses and actions of all three heads
-(`tests/test_policy.py`).
+(`tests/policies/bc/test_policy_bc.py`).
 
 | Method                 | Behavior                                                                | Source                                                                                                                                                                                                                                |
 | ---------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -410,7 +429,7 @@ LeRobot's `diffusion` extra.
 nothing, add the batch dimension, move tensors to the policy's device, and
 normalize; after it they unnormalize and move the action to the CPU. With the
 `IDENTITY` mapping of §2, normalization leaves every value as it is, even when
-dataset statistics are given (`tests/test_processor.py`).
+dataset statistics are given (`tests/policies/test_processor.py`).
 
 A 20-step `lerobot-train` run on the converted Lift image dataset trains,
 saves a checkpoint, and loads it back with its processors for
@@ -427,7 +446,7 @@ BC-RNN is robomimic's main policy in its paper. It reuses the camera encoder
 `RobomimicBCRNNConfig` registers the policy type `robomimic_bc_rnn`. It keeps
 the shared settings of §2, which robomimic's BC-RNN experiments also use, and
 adds the settings below. Defaults follow the image experiments on PH data;
-`tests/test_paper_defaults.py` checks them against robomimic's own config.
+`tests/policies/test_paper_defaults.py` checks them against robomimic's own config.
 
 | Setting                  | Default                                   | Config field                                                       | Source                                                                           |
 | ------------------------ | ----------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
@@ -479,7 +498,7 @@ robomimic's sorted keys (§4).
 (Repo `robomimic/algo/bc.py:483`, `:578`). Tests load the same weights into
 robomimic's algorithms and compare the sequence losses of both heads and the
 actions of 25 consecutive steps across two state resets
-(`tests/test_policy_bc_rnn.py`).
+(`tests/policies/bc_rnn/test_policy_bc_rnn.py`).
 
 | Method                 | Behavior                                                                                       | Source                                                                                                                     |
 | ---------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -502,14 +521,14 @@ refuses tensors that share a buffer none of them covers, so a BC-RNN
 checkpoint failed to save on a cloud GPU (this port; found by the benchmark
 run). `RobomimicBCRNNPolicy._save_pretrained` saves copies of the weights
 instead. CPU and MPS keep separate weights, so a test makes the LSTM's
-weights share one buffer to reproduce the failure (`tests/test_policy_bc_rnn.py`).
+weights share one buffer to reproduce the failure (`tests/policies/bc_rnn/test_policy_bc_rnn.py`).
 
 ### 11. Processor
 
 `make_robomimic_bc_rnn_pre_post_processors` returns the same default pipelines
 as BC (§7). They see one step at a time at inference, and whole sequences in
 training, where normalization would apply to every step alike; with the
-`IDENTITY` mapping it leaves them unchanged (`tests/test_processor.py`).
+`IDENTITY` mapping it leaves them unchanged (`tests/policies/test_processor.py`).
 
 A 20-step `lerobot-train` run on the `train` mask of the converted Lift image
 dataset trains the 35M-parameter policy, saves a checkpoint, and runs 12 steps
@@ -518,7 +537,7 @@ processors.
 
 ### 12. Model zoo checkpoints
 
-`lerobot_policy_robomimic/convert_checkpoint.py` turns a BC-RNN checkpoint of
+`lerobot_policy_robomimic/scripts/convert_checkpoint.py` turns a BC-RNN checkpoint of
 robomimic's model zoo into a `robomimic_bc_rnn` policy directory with its
 config, weights, and processors. The model zoo was trained with robomimic
 v0.1 (Repo `docs/model_zoo/robomimic_v0.1.md`), so the converter reads that
@@ -555,7 +574,7 @@ come from the checkpoint.
 Tests write a robomimic v0.5 BC-RNN network in the v0.1 format, convert it,
 and compare 12 steps of actions with robomimic's own `get_action`; they also
 convert the Lift checkpoint when it is downloaded
-(`tests/test_convert_checkpoint.py`).
+(`tests/scripts/test_convert_checkpoint.py`).
 
 On the 1026 frames of the 20 `valid` demos of the converted Lift image
 dataset, the converted Lift PH image checkpoint
@@ -588,7 +607,7 @@ no BC-Transformer, so the transformer, optimizer, and schedule defaults follow
 the template that robomimic's transformer tutorial calls tuned (Repo
 `docs/tutorials/training_transformers.md`,
 `robomimic/config/default_templates/bc_transformer.json`, cited below as
-"template"). `tests/test_paper_defaults.py` checks them against that template,
+"template"). `tests/policies/test_paper_defaults.py` checks them against that template,
 loaded as `robomimic/scripts/train.py:475-479` loads a config.
 
 | Setting                 | Default                                            | Config field                                                                              | Source                                                                                                                    |
@@ -606,10 +625,10 @@ robomimic updates its learning rate schedule once at the end of every epoch
 (Repo `robomimic/algo/algo.py:313-315`, called from
 `robomimic/scripts/train.py:311`), while LeRobot steps a scheduler after every
 optimizer step (LeRobot `scripts/lerobot_train.py:193`) and has no epochs.
-`RobomimicLinearSchedulerConfig` in `lerobot_policy_robomimic/schedulers.py`,
+`RobomimicLinearSchedulerConfig` in `lerobot_policy_robomimic/policies/common/schedulers.py`,
 registered as the scheduler type `robomimic_linear`, therefore counts steps
 in epochs of `scheduler_steps_per_epoch` and keeps the learning rate fixed
-within each one. `tests/test_schedulers.py` compares it step by step with
+within each one. `tests/policies/common/test_schedulers.py` compares it step by step with
 robomimic's own scheduler stepped once per epoch.
 
 The template trains on low-dim data with batch size 100 for 2000 epochs of
@@ -622,12 +641,12 @@ embeddings, or use GEGLU are off in the template and are not ported.
 
 ### 14. Transformer
 
-`Transformer` in `lerobot_policy_robomimic/transformer.py` maps a sequence of
+`Transformer` in `lerobot_policy_robomimic/policies/bc_transformer/transformer.py` maps a sequence of
 encoded observations to one feature per step. It covers the embedding part of
 robomimic's `MIMO_Transformer` (Repo `robomimic/models/obs_nets.py:997-1022`,
 `:1088-1102`) and its `GPT_Backbone` (Repo
 `robomimic/models/transformers.py`). A test loads robomimic's weights and
-compares the outputs (`tests/test_transformer.py`).
+compares the outputs (`tests/policies/bc_transformer/test_transformer.py`).
 
 | Part            | Behavior                                                                                                                                            | Source                                                                                       |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
@@ -650,7 +669,7 @@ following robomimic's `BC_Transformer` and `BC_Transformer_GMM` classes (Repo
 `robomimic/algo/bc.py:677`, `:794`). Tests load the same weights into
 robomimic's algorithms and compare the losses of both heads, the GMM at the
 last step, and 13 steps of actions on padded observation windows
-(`tests/test_policy_bc_transformer.py`).
+(`tests/policies/bc_transformer/test_policy_bc_transformer.py`).
 
 | Part                   | Behavior                                                                                        | Source                                                                                                                   |
 | ---------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
@@ -679,7 +698,7 @@ distribution rather than samples.
 
 `make_robomimic_bc_transformer_pre_post_processors` returns the same default
 pipelines as BC (§7), which leave every feature unnormalized
-(`tests/test_processor.py`).
+(`tests/policies/test_processor.py`).
 
 A 20-step `lerobot-train` run on the `train` mask of the converted Lift image
 dataset trains the 41M-parameter policy with AdamW and the
@@ -706,7 +725,7 @@ conditional VAE models the action instead.
 inherits only `RobomimicPolicyConfig`, the observation, encoder, and optimizer
 settings of §2, since BC-VAE has no action head. BC-VAE uses the same
 optimizer as BC (Repo `robomimic/config/bc_config.py:27-33`). The VAE settings
-below keep robomimic's defaults; `tests/test_paper_defaults.py` checks them
+below keep robomimic's defaults; `tests/policies/test_paper_defaults.py` checks them
 against robomimic's config for BC-VAE in the image experiments.
 
 | Setting                  | Default                                      | Config field                                                                                         | Source                                                                                                                                  |
@@ -730,7 +749,7 @@ or the prior is conditioned (`robomimic/models/vae_nets.py:940`); the decoder
 gets the observation group whenever the VAE has observations (`:1049-1050`,
 likewise at `v0.1.0:robomimic/models/vae_nets.py:1109`). Setting it to false
 in robomimic changes nothing, so it has no field here, and a test sets it to
-false in robomimic and still matches (`tests/test_vae.py`).
+false in robomimic and still matches (`tests/policies/bc_vae/test_vae.py`).
 
 robomimic's categorical prior (`robomimic/config/bc_config.py:74-79`) is not
 ported. It lowers the Gumbel-softmax temperature by a fixed step every epoch
@@ -738,12 +757,12 @@ ported. It lowers the Gumbel-softmax temperature by a fixed step every epoch
 
 ### 18. Network
 
-`ActionVAE` in `lerobot_policy_robomimic/vae.py` is robomimic's `VAE` as
+`ActionVAE` in `lerobot_policy_robomimic/policies/bc_vae/vae.py` is robomimic's `VAE` as
 `VAEActor` builds it for actions (Repo `robomimic/models/policy_nets.py:1336`,
 `robomimic/models/vae_nets.py:747`). Its three parts are each a
 `ConditionedMLP`, robomimic's `MIMO_MLP` (`robomimic/models/obs_nets.py:541`):
 an observation encoder of §4, an MLP, and one linear layer per output.
-`tests/test_vae.py` loads the same weights into robomimic's `VAE`, reordering
+`tests/policies/bc_vae/test_vae.py` loads the same weights into robomimic's `VAE`, reordering
 the observation columns of each first MLP layer as in §4, and compares the
 losses and the sampled actions of eight prior and decoder settings.
 
@@ -770,7 +789,7 @@ evaluation loops call, following robomimic's `BC_VAE` class (Repo
 `robomimic/algo/bc.py:373`). Tests load the same weights into robomimic's
 algorithm with a learned, observation-conditioned mixture prior and a KL
 weight of 0.5, and compare the loss, the logged values, and the actions
-(`tests/test_policy_bc_vae.py`).
+(`tests/policies/bc_vae/test_policy_bc_vae.py`).
 
 | Method                 | Behavior                                                                                      | Source                                                                           |
 | ---------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
@@ -789,7 +808,7 @@ ported.
 
 `make_robomimic_bc_vae_pre_post_processors` returns the same default
 pipelines as BC (§7), which leave every feature unnormalized
-(`tests/test_processor.py`).
+(`tests/policies/test_processor.py`).
 
 A 20-step `lerobot-train` run on the `train` mask of the converted Lift image
 dataset trains BC-VAE with a learned, observation-conditioned mixture prior,
@@ -809,14 +828,14 @@ of a dataset the same one.
 
 ### 21. Task embedding
 
-`CLIPTaskEmbeddingStep` in `lerobot_policy_robomimic/language.py` embeds the
+`CLIPTaskEmbeddingStep` in `lerobot_policy_robomimic/policies/common/language.py` embeds the
 task string that LeRobot keeps with every frame, and that `lerobot-eval` takes
 from the env's `task_description` (LeRobot `scripts/lerobot_eval.py:281`). It
 adds the embedding to the observation as `observation.language.embedding`.
-`make_robomimic_pre_post_processors` in `lerobot_policy_robomimic/processors.py`
+`make_robomimic_pre_post_processors` in `lerobot_policy_robomimic/policies/common/processors.py`
 puts it after the batch dimension is added and before tensors move to the
 policy's device; every policy's processor factory calls this one function.
-`tests/test_language.py` checks the step and, once the CLIP model is in the
+`tests/policies/common/test_language.py` checks the step and, once the CLIP model is in the
 Hugging Face cache, compares its embedding with robomimic's `get_lang_emb`.
 
 | Setting or part  | Behavior                                                                  | Config field                                      | Source                                                                                                                            |
@@ -843,7 +862,7 @@ more vector observation: `observation_features` lists it last, and the
 observation encoder (§4) concatenates it unchanged, as robomimic does with a
 `lang_emb` key among its low-dim observations (Repo
 `docs/tutorials/language_conditioning.md`, "Feature input to action head";
-`robomimic/models/obs_nets.py:282-284`, `:303-307`). `tests/test_language_conditioning.py`
+`robomimic/models/obs_nets.py:282-284`, `:303-307`). `tests/policies/test_language_conditioning.py`
 compares the encoder with robomimic's, reordering features as in §4 since
 robomimic sorts `lang_emb` among its keys, and BC-RNN's loss with robomimic's
 on the same weights.
@@ -866,8 +885,8 @@ the embedding, robomimic's `ResNet18ConvFiLM` inside
 `VisualCoreLanguageConditioned` (Repo `robomimic/models/base_nets.py:657`,
 `robomimic/models/obs_core.py:189`). `ImageEncoder` gains a `FiLM` layer after
 each residual block, and `CameraEncoder` in
-`lerobot_policy_robomimic/observation_encoder.py` passes the embedding to it.
-`tests/test_language_conditioning.py` compares the camera encoder with
+`lerobot_policy_robomimic/policies/common/observation_encoder.py` passes the embedding to it.
+`tests/policies/test_language_conditioning.py` compares the camera encoder with
 robomimic's, and BC's loss and actions and BC-RNN's loss with robomimic's
 algorithms, on the same weights.
 
@@ -892,7 +911,7 @@ names, so earlier checkpoints still load.
 ### 24. Runs
 
 With `openai/clip-vit-large-patch14` in the Hugging Face cache, its embedding
-of two tasks equals robomimic's `get_lang_emb` (`tests/test_language.py`).
+of two tasks equals robomimic's `get_lang_emb` (`tests/policies/common/test_language.py`).
 A 20-step `lerobot-train` run of BC-RNN with `language_conditioning=film` on
 the `train` mask of the converted Lift image dataset trains the 41M-parameter
 policy and saves a preprocessor that includes the CLIP step. `lerobot-eval`

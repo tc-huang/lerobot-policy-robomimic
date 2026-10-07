@@ -21,7 +21,7 @@ uv sync --extra training
 `robomimic/scripts/extract_obs_from_raw_datasets.sh:59-61`）。
 
 ```bash
-uv run python -m lerobot_policy_robomimic.convert_dataset \
+uv run python -m lerobot_policy_robomimic.scripts.convert_dataset \
     --hdf5 data/robomimic/lift/ph/image_v15.hdf5 \
     --repo-id <user>/robomimic_lift_ph_image \
     --task "lift the cube"
@@ -81,7 +81,7 @@ uv run lerobot-train \
 ```bash
 curl -L --create-dirs -o data/robomimic/model_zoo/lift_ph_image_epoch_500_succ_100.pth \
     http://downloads.cs.stanford.edu/downloads/rt_benchmark/model_zoo/lift/bc_rnn/lift_ph_image_epoch_500_succ_100.pth
-uv run python -m lerobot_policy_robomimic.convert_checkpoint \
+uv run python -m lerobot_policy_robomimic.scripts.convert_checkpoint \
     --checkpoint data/robomimic/model_zoo/lift_ph_image_epoch_500_succ_100.pth \
     --output-dir outputs/checkpoints/lift_ph_image_bc_rnn
 ```
@@ -101,9 +101,9 @@ uv run lerobot-eval \
 
 ## Datasets
 
-`lerobot_policy_robomimic/convert_dataset.py` 把含有 observation 的 robomimic hdf5 檔轉成
+`lerobot_policy_robomimic/scripts/convert_dataset.py` 把含有 observation 的 robomimic hdf5 檔轉成
 LeRobotDataset，每個 demo 一個 episode。測試會用一個小型 hdf5 檔比對轉換後的數值、像素、
-episode 與 metadata（`tests/test_convert_dataset.py`）。來源標示方式見「設計」一節。
+episode 與 metadata（`tests/scripts/test_convert_dataset.py`）。來源標示方式見「設計」一節。
 
 | 決策                | 選擇                                                                                       | 來源                                                                                                                                            |
 | ------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -128,8 +128,8 @@ robomimic 沒有釋出 v1.5 的 image dataset；它是用 `robomimic/scripts/dat
 
 ## Simulation
 
-`lerobot_policy_robomimic/env_config.py` 的 `RobomimicEnvConfig` 註冊 LeRobot env type
-`robomimic`，`lerobot_policy_robomimic/robosuite_env.py` 的 `RobomimicEnv` 則以 robomimic rollout
+`lerobot_policy_robomimic/envs/configs.py` 的 `RobomimicEnvConfig` 註冊 LeRobot env type
+`robomimic`，`lerobot_policy_robomimic/envs/robosuite.py` 的 `RobomimicEnv` 則以 robomimic rollout
 的方式包裝 robosuite。env 是依轉換後 dataset 的 `meta/robomimic_env_args.json` 重建的（見
 Datasets 一節）；robosuite 只在建立 env 時才 import，因此它留在 `sim` extra 中。來源標示方式見
 「設計」一節。
@@ -148,7 +148,7 @@ Datasets 一節）；robosuite 只在建立 env 時才 import，因此它留在 
 | Features     | 建立 config 時，從一個不算繪相機的 robosuite env 讀出                                        | 本專案：LeRobot 會以 env 的 action feature 取代載入 policy 的設定（`policies/factory.py:304`），因此大小必須正確                  |
 
 測試會以相同的 env args 建立 robomimic 自己的 `EnvRobosuite`，兩者以相同 seed reset 後，比對
-5 步的影像、本體感知、物體狀態、reward 與成功與否（`tests/test_env.py`）。比對是從各自以 seed
+5 步的影像、本體感知、物體狀態、reward 與成功與否（`tests/envs/test_env.py`）。比對是從各自以 seed
 reset 的狀態開始，而不是複製模擬器狀態，因為 robosuite 的控制器與視覺化標記都有複製模擬器狀態
 時帶不過去的狀態。
 
@@ -179,9 +179,27 @@ robomimic 以 MIT License 釋出。本專案重新實作其網路，執行時不
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Policy type           | `robomimic_bc`（BC）、`robomimic_bc_rnn`（BC-RNN）、`robomimic_bc_transformer`（BC-Transformer）、`robomimic_bc_vae`（BC-VAE）                                   | 本專案：加上 `robomimic_` 前綴，避免和 LeRobot 內建的 type 衝突，例如 `diffusion`（`policies/diffusion/`），而 robomimic 也有實作它（原 repo `robomimic/algo/diffusion_policy.py`）                 |
 | Class 與函式名稱      | `RobomimicBCConfig`、`RobomimicBCPolicy`、`make_robomimic_bc_pre_post_processors`；`robomimic_bc_rnn`、`robomimic_bc_transformer` 與 `robomimic_bc_vae` 依此類推 | LeRobot：policy class 名稱是把 config class 名稱的 `Config` 換成 `Policy`（`policies/factory.py:409-415`），processor factory 名稱是 `make_<type>_pre_post_processors`（`policies/factory.py:458`） |
-| 模組名稱              | `configuration_<type>.py`、`modeling_<type>.py`、`processor_<type>.py`                                                                                           | LeRobot：modeling 與 processor 模組是把 config 模組路徑中的 `configuration_` 替換後找到的（`policies/factory.py:416`、`:459`）；命名沿用指南的 template                                             |
+| 模組名稱              | `policies/<name>/configuration_<type>.py`、`modeling_<type>.py`、`processor_<type>.py`                                                                           | LeRobot：modeling 與 processor 模組是把 config 模組路徑中的 `configuration_` 替換後找到的（`policies/factory.py:416`、`:459`），因此三者放在同一個資料夾；命名沿用指南的 template                   |
 | Distribution 名稱     | `lerobot_policy_robomimic`                                                                                                                                       | LeRobot：名稱以 `lerobot_policy_` 開頭的已安裝 distribution 會以該名稱被 import（`utils/import_utils.py:231-255`），進而執行 `@PreTrainedConfig.register_subclass`                                  |
 | 一個套件、多個 policy | 每個 robomimic 演算法各自有 policy type 與三個模組                                                                                                               | 本專案：指南示範一個套件一個 policy，但 factory 只需要每個 type 各有這三個模組，因此 robomimic 的演算法可以共用一個套件與其網路                                                                     |
+| 套件結構              | `policies/` 下每個 policy 一個子套件，共用部分放在 `policies/common/`，旁邊是 `envs/` 與 `scripts/`；`tests/` 採用相同結構                                       | LeRobot 自己的結構：`policies/<name>/`、`policies/common/`、`envs/`、`scripts/`                                                                                                                     |
+
+```
+src/lerobot_policy_robomimic/
+├── __init__.py          # 向 LeRobot 註冊所有 policy 與 env
+├── policies/
+│   ├── common/          # 各 policy 共用的 config、相機與 observation encoder、MLP、
+│   │                    # action head、語言、processor 與 scheduler
+│   ├── bc/              # configuration_、modeling_、processor_robomimic_bc.py
+│   ├── bc_rnn/
+│   ├── bc_transformer/  # 另有只給它用的 transformer.py
+│   └── bc_vae/          # 另有只給它用的 vae.py
+├── envs/                # robomimic env 的 config 與 robosuite 包裝
+└── scripts/             # dataset 與 checkpoint 轉換工具
+```
+
+只有一個 policy 使用的網路放在該 policy 的子套件中。套件對外提供的名稱，例如
+`RobomimicBCConfig`，都直接從 `lerobot_policy_robomimic` import。
 
 ## BC（`robomimic_bc`）
 
@@ -189,7 +207,7 @@ robomimic 以 MIT License 釋出。本專案重新實作其網路，執行時不
 
 `RobomimicBCConfig` 註冊 policy type `robomimic_bc`。預設值沿用 robomimic 在
 proficient-human（PH）資料集上的 image 實驗設定。下表中除了 `actor_layer_dims` 以外的設定，
-都來自 `lerobot_policy_robomimic/base_config.py`，裡面有兩個本身不是 policy type 的 class：
+都來自 `lerobot_policy_robomimic/policies/common/config.py`，裡面有兩個本身不是 policy type 的 class：
 `RobomimicPolicyConfig` 放本專案所有 robomimic policy 共用的 observation、encoder 與
 optimizer 設定；它的子類別 `RobomimicActorConfig` 再加上 BC、BC-RNN 與 BC-Transformer
 共用的 action head 設定。
@@ -228,7 +246,7 @@ Batch size 與訓練長度屬於 `lerobot-train`，不屬於 policy：robomimic 
 用 batch size 100，訓練 2000 個 epoch、每個 epoch 100 步（共 20 萬步）
 （`:43`、`:61-62`）。
 
-`tests/test_paper_defaults.py` 會把這些預設值和 robomimic 自己在 PH Lift image 實驗中的
+`tests/policies/test_paper_defaults.py` 會把這些預設值和 robomimic 自己在 PH Lift image 實驗中的
 BC config 比對。設定 `use_gmm=false` 則得到 robomimic 原本的 `BC` class，論文只在
 機器產生的資料集上這樣用（`robomimic/scripts/generate_paper_configs.py:370-372`）。
 設定 `use_gaussian=true` 則得到 robomimic 的 `BC_Gaussian`，論文沒有用它；它的設定沿用
@@ -236,10 +254,10 @@ robomimic 的預設值，由同一個測試檢查。
 
 ### 3. 相機 encoder
 
-`lerobot_policy_robomimic/vision.py` 是 robomimic image 實驗所用的相機 encoder，對應
+`lerobot_policy_robomimic/policies/common/vision.py` 是 robomimic image 實驗所用的相機 encoder，對應
 robomimic 的 `VisualCore`（原 repo `robomimic/scripts/generate_paper_configs.py:151-160`）。
 測試會用相同的權重和輸入，把每個部分和 robomimic 自己的模組比對
-（`tests/test_vision.py`）。
+（`tests/policies/common/test_vision.py`）。
 
 | 部分            | 行為                                                                                | 本專案           | 來源                                                                                                                                                     |
 | --------------- | ----------------------------------------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -274,10 +292,10 @@ convolution、裁切的位置編碼，以及可學習或加噪聲的 spatial sof
 
 ### 4. Observation encoder
 
-`lerobot_policy_robomimic/observation_encoder.py` 把 policy 讀取的所有 observation
+`lerobot_policy_robomimic/policies/common/observation_encoder.py` 把 policy 讀取的所有 observation
 轉成一個特徵向量，對應 robomimic 的 `ObservationEncoder`
 （原 repo `robomimic/models/obs_nets.py:119`）。測試會把相同的相機權重載入 robomimic
-的 encoder，並比對輸出（`tests/test_observation_encoder.py`）。
+的 encoder，並比對輸出（`tests/policies/common/test_observation_encoder.py`）。
 
 | 部分             | 行為                                                                                              | 來源                                                                                                                                                                                                          |
 | ---------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -294,8 +312,8 @@ robomimic 排序後，相機與向量 observation 會交錯排列；以 image �
 
 ### 5. MLP 與 action head
 
-`lerobot_policy_robomimic/mlp.py` 的 `MLP` 把編碼後的 observation 轉成特徵，
-`lerobot_policy_robomimic/action_heads.py` 的 action head 再把特徵轉成 action。兩者合起來
+`lerobot_policy_robomimic/policies/common/mlp.py` 的 `MLP` 把編碼後的 observation 轉成特徵，
+`lerobot_policy_robomimic/policies/common/action_heads.py` 的 action head 再把特徵轉成 action。兩者合起來
 對應 robomimic 的 `ActorNetwork`（原 repo `robomimic/models/policy_nets.py:26`）、
 `GaussianActorNetwork`（`:193`）或 `GMMActorNetwork`（`:397`），BC 用 `actor_layer_dims` 建立它們（`robomimic/algo/bc.py:87-92`）。
 
@@ -343,7 +361,7 @@ observation encoder、MLP 與 action head，行為依照 robomimic 的 `BC`、`B
 `BC_GMM` class（原 repo `robomimic/algo/bc.py:78`、`:254`、`:347`）。測試會把相同權重載入
 robomimic 的演算法，依 §4 的方式重新排列 MLP 第一層的輸入欄位，並比對三種 head 的 loss
 與 action
-（`tests/test_policy.py`）。
+（`tests/policies/bc/test_policy_bc.py`）。
 
 | Method                 | 行為                                                     | 來源                                                                                                                                                                                                                  |
 | ---------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -369,7 +387,7 @@ import robomimic 的 `BC` 時會一併 import 所有其他演算法（原 repo
 （`processor/factory.py:116-128`、`:173-174`）。policy 之前的 pipeline 不重新命名任何
 key、加上 batch 維度、把 tensor 移到 policy 的裝置並做正規化；policy 之後的 pipeline
 做反正規化並把 action 移回 CPU。在 §2 的 `IDENTITY` 對應下，即使給了 dataset 統計值，
-正規化也不會改變任何數值（`tests/test_processor.py`）。
+正規化也不會改變任何數值（`tests/policies/test_processor.py`）。
 
 在轉換好的 Lift image dataset 上跑 20 步的 `lerobot-train`，可以完成訓練、存下
 checkpoint，並連同 processor 讀回後執行 `select_action`。`lerobot-train` 需要
@@ -385,7 +403,7 @@ encoder（§4）與 action head（§5）。
 
 `RobomimicBCRNNConfig` 註冊 policy type `robomimic_bc_rnn`。它沿用 §2 的共用設定（robomimic
 的 BC-RNN 實驗也使用相同設定），並新增下列設定。預設值沿用 PH 資料上的 image 實驗；
-`tests/test_paper_defaults.py` 會和 robomimic 自己的 config 比對。
+`tests/policies/test_paper_defaults.py` 會和 robomimic 自己的 config 比對。
 
 | 設定             | 預設值                                | Config 欄位                                                        | 來源                                                                                  |
 | ---------------- | ------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
@@ -430,7 +448,7 @@ dict 因此可以原樣載入 `lstm`，只有 `weight_ih_l0` 的輸入欄位是�
 
 `RobomimicBCRNNPolicy` 依照 robomimic 的 `BC_RNN` 與 `BC_RNN_GMM` class（原 repo
 `robomimic/algo/bc.py:483`、`:578`）。測試會把相同權重載入 robomimic 的演算法，比對兩種
-head 的序列 loss，以及連續 25 步、跨越兩次狀態重設的 action（`tests/test_policy_bc_rnn.py`）。
+head 的序列 loss，以及連續 25 步、跨越兩次狀態重設的 action（`tests/policies/bc_rnn/test_policy_bc_rnn.py`）。
 
 | Method                 | 行為                                                     | 來源                                                                                                 |
 | ---------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
@@ -450,13 +468,13 @@ encoder 與 action head。
 （`policies/pretrained.py:160`），而它拒絕儲存「共用同一塊記憶體、卻沒有任何一個完整涵蓋它」
 的 tensor，因此 BC-RNN 的 checkpoint 在雲端 GPU 上存檔失敗（本專案；由 benchmark 執行發現）。
 `RobomimicBCRNNPolicy._save_pretrained` 改為儲存權重的副本。CPU 與 MPS 上的權重是各自獨立的，
-因此測試會讓 LSTM 的權重共用同一塊記憶體來重現這個錯誤（`tests/test_policy_bc_rnn.py`）。
+因此測試會讓 LSTM 的權重共用同一塊記憶體來重現這個錯誤（`tests/policies/bc_rnn/test_policy_bc_rnn.py`）。
 
 ### 11. Processor
 
 `make_robomimic_bc_rnn_pre_post_processors` 回傳和 BC 相同的預設 pipeline（§7）。推論時
 它們一次處理一步，訓練時則處理整段序列，正規化會同樣套用到每一步；在 `IDENTITY` 對應下
-數值不會改變（`tests/test_processor.py`）。
+數值不會改變（`tests/policies/test_processor.py`）。
 
 在轉換好的 Lift image dataset 上，用 `train` mask 跑 20 步的 `lerobot-train`，可以訓練這個
 35M 參數的 policy、存下 checkpoint，並連同 processor 讀回後執行 12 步 `select_action`，
@@ -464,7 +482,7 @@ encoder 與 action head。
 
 ### 12. Model zoo checkpoint
 
-`lerobot_policy_robomimic/convert_checkpoint.py` 把 robomimic model zoo 的 BC-RNN
+`lerobot_policy_robomimic/scripts/convert_checkpoint.py` 把 robomimic model zoo 的 BC-RNN
 checkpoint 轉成 `robomimic_bc_rnn` 的 policy 目錄，包含 config、權重與 processor。model zoo
 是用 robomimic v0.1 訓練的（原 repo `docs/model_zoo/robomimic_v0.1.md`），因此轉換程式讀取
 該版本的格式；robomimic v0.5 本身無法載入這些 image checkpoint，因為它只升級 config
@@ -496,7 +514,7 @@ checkpoint 以 `torch.load(weights_only=True)` 讀取，不會執行 pickle 中�
 
 測試會把 robomimic v0.5 的 BC-RNN 網路寫成 v0.1 格式、轉換後，和 robomimic 自己的
 `get_action` 比對 12 步的 action；若已下載 Lift checkpoint，也會轉換它
-（`tests/test_convert_checkpoint.py`）。
+（`tests/scripts/test_convert_checkpoint.py`）。
 
 在轉換好的 Lift image dataset 中，20 個 `valid` demo 共 1026 個 frame 上，轉換後的 Lift PH
 image checkpoint（`lift_ph_image_epoch_500_succ_100.pth`，SHA-256 `37b94a11…bc47fb`）
@@ -522,7 +540,7 @@ BC-Transformer 不在 robomimic 的論文中，是 robomimic 在 v0.3 加入的�
 robomimic transformer 教學稱為「調好參數」的 template（原 repo
 `docs/tutorials/training_transformers.md`、
 `robomimic/config/default_templates/bc_transformer.json`，下表稱為「template」）。
-`tests/test_paper_defaults.py` 會以 `robomimic/scripts/train.py:475-479` 載入 config 的方式
+`tests/policies/test_paper_defaults.py` 會以 `robomimic/scripts/train.py:475-479` 載入 config 的方式
 讀取該 template 並比對。
 
 | 設定                   | 預設值                                       | Config 欄位                                                                               | 來源                                                                                                                 |
@@ -539,10 +557,10 @@ robomimic transformer 教學稱為「調好參數」的 template（原 repo
 robomimic 在每個 epoch 結束時才更新一次 learning rate schedule（原 repo
 `robomimic/algo/algo.py:313-315`，由 `robomimic/scripts/train.py:311` 呼叫），而 LeRobot 在
 每次 optimizer 更新後都會呼叫 scheduler（LeRobot `scripts/lerobot_train.py:193`），也沒有
-epoch 的概念。因此 `lerobot_policy_robomimic/schedulers.py` 中的
+epoch 的概念。因此 `lerobot_policy_robomimic/policies/common/schedulers.py` 中的
 `RobomimicLinearSchedulerConfig`（註冊為 scheduler type `robomimic_linear`）以
 `scheduler_steps_per_epoch` 步為一個 epoch 計數，並在每個 epoch 內固定 learning rate。
-`tests/test_schedulers.py` 會和每個 epoch 呼叫一次的 robomimic scheduler 逐步比對。
+`tests/policies/common/test_schedulers.py` 會和每個 epoch 呼叫一次的 robomimic scheduler 逐步比對。
 
 template 是 low-dim 資料的設定：batch size 100，訓練 2000 個 epoch、每個 epoch 100 步
 （共 20 萬步；template `:56-57`、`:21`），這些要傳給 `lerobot-train`。
@@ -553,11 +571,11 @@ sinusoidal 或 `nn.Embedding` 位置編碼，以及 GEGLU 的選項，在 templa
 
 ### 14. Transformer
 
-`lerobot_policy_robomimic/transformer.py` 的 `Transformer` 把一段編碼後的 observation 序列
+`lerobot_policy_robomimic/policies/bc_transformer/transformer.py` 的 `Transformer` 把一段編碼後的 observation 序列
 轉成每一步各一個特徵。它涵蓋 robomimic `MIMO_Transformer` 的 embedding 部分（原 repo
 `robomimic/models/obs_nets.py:997-1022`、`:1088-1102`）與其 `GPT_Backbone`（原 repo
 `robomimic/models/transformers.py`）。測試會載入 robomimic 的權重並比對輸出
-（`tests/test_transformer.py`）。
+（`tests/policies/bc_transformer/test_transformer.py`）。
 
 | 部分           | 行為                                                                                                     | 來源                                                                                            |
 | -------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -577,7 +595,7 @@ masked softmax，差異在浮點誤差範圍內，而且不需要儲存遮罩。
 最後一步套用 §5 的 action head，行為依照 robomimic 的 `BC_Transformer` 與
 `BC_Transformer_GMM` class（原 repo `robomimic/algo/bc.py:677`、`:794`）。測試會把相同權重
 載入 robomimic 的演算法，比對兩種 head 的 loss、最後一步的 GMM，以及在補齊的
-observation 視窗上連續 13 步的 action（`tests/test_policy_bc_transformer.py`）。
+observation 視窗上連續 13 步的 action（`tests/policies/bc_transformer/test_policy_bc_transformer.py`）。
 
 | 部分                   | 行為                                                                                          | 來源                                                                                                                       |
 | ---------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -601,7 +619,7 @@ robomimic 會為 context 中每一步都抽樣 action，再取最後一步（`ro
 ### 16. Processor
 
 `make_robomimic_bc_transformer_pre_post_processors` 回傳和 BC 相同的預設 pipeline（§7），
-不會正規化任何 feature（`tests/test_processor.py`）。
+不會正規化任何 feature（`tests/policies/test_processor.py`）。
 
 在轉換好的 Lift image dataset 上，用 `train` mask 跑 20 步的 `lerobot-train`，可以用 AdamW 與
 `robomimic_linear` schedule 訓練這個 41M 參數的 policy、存下 checkpoint（其訓練設定保留了這個
@@ -622,7 +640,7 @@ observation encoder（§4），但沒有 action head，而是以條件式 VAE �
 `RobomimicBCVAEConfig` 註冊 policy type `robomimic_bc_vae`。BC-VAE 沒有 action head，因此它
 只繼承 `RobomimicPolicyConfig`，也就是 §2 的 observation、encoder 與 optimizer 設定；
 BC-VAE 的 optimizer 和 BC 相同（原 repo `robomimic/config/bc_config.py:27-33`）。下表的
-VAE 設定沿用 robomimic 的預設值；`tests/test_paper_defaults.py` 會把它們和 robomimic 在
+VAE 設定沿用 robomimic 的預設值；`tests/policies/test_paper_defaults.py` 會把它們和 robomimic 在
 image 實驗中的 BC-VAE config 比對。
 
 | 設定                   | 預設值                              | Config 欄位                                                                                             | 來源                                                                                                                                            |
@@ -644,7 +662,7 @@ robomimic 的 `decoder.is_conditioned` 只用在一個 assertion，檢查 decode
 依 observation 條件化（`robomimic/models/vae_nets.py:940`）；只要 VAE 有 observation，decoder
 就會拿到 observation 這一組輸入（`:1049-1050`，`v0.1.0:robomimic/models/vae_nets.py:1109`
 也一樣）。在 robomimic 中把它設為 false 沒有任何效果，因此本專案沒有這個欄位；測試在
-robomimic 端把它設為 false，結果仍然一致（`tests/test_vae.py`）。
+robomimic 端把它設為 false，結果仍然一致（`tests/policies/bc_vae/test_vae.py`）。
 
 robomimic 的 categorical prior（`robomimic/config/bc_config.py:74-79`）不移植。它每個 epoch
 把 Gumbel-softmax 的溫度降低固定的量（`robomimic/algo/bc.py:393-400`），而 LeRobot 不會把
@@ -652,11 +670,11 @@ epoch 交給 policy。
 
 ### 18. 網路
 
-`lerobot_policy_robomimic/vae.py` 的 `ActionVAE` 是 `VAEActor` 為 action 建立的 robomimic
+`lerobot_policy_robomimic/policies/bc_vae/vae.py` 的 `ActionVAE` 是 `VAEActor` 為 action 建立的 robomimic
 `VAE`（原 repo `robomimic/models/policy_nets.py:1336`、`robomimic/models/vae_nets.py:747`）。
 它的三個部分各是一個 `ConditionedMLP`，對應 robomimic 的 `MIMO_MLP`
 （`robomimic/models/obs_nets.py:541`）：一個 §4 的 observation encoder、一個 MLP，以及每個
-輸出各一層 Linear。`tests/test_vae.py` 把相同權重載入 robomimic 的 `VAE`，依 §4 的方式重新
+輸出各一層 Linear。`tests/policies/bc_vae/test_vae.py` 把相同權重載入 robomimic 的 `VAE`，依 §4 的方式重新
 排列每個 MLP 第一層的 observation 欄位，並在八種 prior 與 decoder 設定下比對 loss 與抽樣出的
 action。
 
@@ -680,7 +698,7 @@ action。
 `RobomimicBCVAEPolicy` 在 LeRobot 訓練與評估流程會呼叫的 method 中包裝 `ActionVAE`，行為依照
 robomimic 的 `BC_VAE` class（原 repo `robomimic/algo/bc.py:373`）。測試會把相同權重載入
 robomimic 的演算法，使用可學習、依 observation 條件化的混合 prior 與 0.5 的 KL 權重，比對
-loss、記錄的數值與 action（`tests/test_policy_bc_vae.py`）。
+loss、記錄的數值與 action（`tests/policies/bc_vae/test_policy_bc_vae.py`）。
 
 | Method                 | 行為                                                                          | 來源                                                                                |
 | ---------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
@@ -697,7 +715,7 @@ loss、記錄的數值與 action（`tests/test_policy_bc_vae.py`）。
 ### 20. Processor
 
 `make_robomimic_bc_vae_pre_post_processors` 回傳和 BC 相同的預設 pipeline（§7），不會正規化
-任何 feature（`tests/test_processor.py`）。
+任何 feature（`tests/policies/test_processor.py`）。
 
 在轉換後的 Lift image dataset 的 `train` mask 上執行 20 步 `lerobot-train`，以可學習、依
 observation 條件化的混合 prior 訓練 BC-VAE，儲存 checkpoint，並連同 processor 載入後執行 12 步
@@ -714,12 +732,12 @@ dataset 的所有示範共用同一句。
 
 ### 21. 任務 embedding
 
-`lerobot_policy_robomimic/language.py` 的 `CLIPTaskEmbeddingStep` 把 LeRobot 每個 frame 都有的
+`lerobot_policy_robomimic/policies/common/language.py` 的 `CLIPTaskEmbeddingStep` 把 LeRobot 每個 frame 都有的
 task 字串轉成 embedding；`lerobot-eval` 則從 env 的 `task_description` 取得這個字串（LeRobot
 `scripts/lerobot_eval.py:281`）。它把 embedding 以 `observation.language.embedding` 加進
-observation。`lerobot_policy_robomimic/processors.py` 的 `make_robomimic_pre_post_processors`
+observation。`lerobot_policy_robomimic/policies/common/processors.py` 的 `make_robomimic_pre_post_processors`
 把這個 step 放在加上 batch 維度之後、tensor 移到 policy 裝置之前；每個 policy 的 processor
-factory 都呼叫這同一個函式。`tests/test_language.py` 會檢查這個 step，並在 Hugging Face
+factory 都呼叫這同一個函式。`tests/policies/common/test_language.py` 會檢查這個 step，並在 Hugging Face
 cache 中有 CLIP 模型時，把它的 embedding 和 robomimic 的 `get_lang_emb` 比對。
 
 | 設定或部分     | 行為                                                               | Config 欄位                                        | 來源                                                                                                                   |
@@ -742,7 +760,7 @@ cache 中有 CLIP 模型時，把它的 embedding 和 robomimic 的 `get_lang_em
 `observation_features` 把它列在最後，§4 的 observation encoder 原樣串接它，和 robomimic 把
 `lang_emb` 放在 low-dim observation 中的做法相同（原 repo `docs/tutorials/language_conditioning.md`
 的「Feature input to action head」；`robomimic/models/obs_nets.py:282-284`、`:303-307`）。
-`tests/test_language_conditioning.py` 會把 encoder 與 robomimic 的比對（robomimic 會把
+`tests/policies/test_language_conditioning.py` 會把 encoder 與 robomimic 的比對（robomimic 會把
 `lang_emb` 和其他 key 一起排序，因此依 §4 的方式重新排列特徵），也會在相同權重下比對 BC-RNN
 的 loss。
 
@@ -761,8 +779,8 @@ robomimic 重複的 embedding 相同。
 設定 `language_conditioning=film` 時，每支相機的 ResNet-18 都由 embedding 調製，對應
 robomimic 在 `VisualCoreLanguageConditioned` 中使用的 `ResNet18ConvFiLM`（原 repo
 `robomimic/models/base_nets.py:657`、`robomimic/models/obs_core.py:189`）。`ImageEncoder` 在每個
-residual block 之後加上一層 `FiLM`，並由 `lerobot_policy_robomimic/observation_encoder.py` 的
-`CameraEncoder` 把 embedding 傳給它。`tests/test_language_conditioning.py` 會在相同權重下，把
+residual block 之後加上一層 `FiLM`，並由 `lerobot_policy_robomimic/policies/common/observation_encoder.py` 的
+`CameraEncoder` 把 embedding 傳給它。`tests/policies/test_language_conditioning.py` 會在相同權重下，把
 相機 encoder、BC 的 loss 與 action、BC-RNN 的 loss 和 robomimic 比對。
 
 | 部分           | 行為                                                                                    | 來源                                                                                                                 |
@@ -784,7 +802,7 @@ encoder；它的參數名稱不變，因此先前的 checkpoint 仍可載入。
 ### 24. 執行紀錄
 
 Hugging Face cache 中有 `openai/clip-vit-large-patch14` 時，它對兩個 task 的 embedding 和
-robomimic 的 `get_lang_emb` 相同（`tests/test_language.py`）。在轉換後的 Lift image dataset 的
+robomimic 的 `get_lang_emb` 相同（`tests/policies/common/test_language.py`）。在轉換後的 Lift image dataset 的
 `train` mask 上，以 `language_conditioning=film` 執行 20 步 BC-RNN 的 `lerobot-train`，會訓練這個
 4100 萬參數的 policy，並儲存包含 CLIP step 的 preprocessor。接著 `lerobot-eval` 以 `robomimic`
 env 載入它，env 的 task 描述是 dataset 的 `lift the cube`，並執行兩個 30 步的 episode。這裡不
