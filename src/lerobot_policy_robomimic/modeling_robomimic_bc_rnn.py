@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import torch
@@ -39,6 +40,16 @@ class RobomimicBCRNNPolicy(PreTrainedPolicy):
 
     def get_optim_params(self) -> Iterator[nn.Parameter]:
         return self.parameters()
+
+    def _save_pretrained(self, save_directory: Path, state_dict: dict[str, Tensor] | None = None) -> None:
+        """Saves copies of the weights, since cuDNN keeps the LSTM's as views of one buffer.
+
+        safetensors refuses to save tensors that share a buffer they do not cover entirely, which
+        is how `nn.LSTM` holds its weights on CUDA after `flatten_parameters`.
+        """
+        if state_dict is None:
+            state_dict = {name: tensor.clone() for name, tensor in self.state_dict().items()}
+        super()._save_pretrained(save_directory, state_dict)
 
     def features(self, batch: dict[str, Tensor], state: LSTMState | None = None) -> tuple[Tensor, LSTMState]:
         """Returns the (B, T, D) MLP outputs for (B, T, ...) observations, and the final LSTM state."""

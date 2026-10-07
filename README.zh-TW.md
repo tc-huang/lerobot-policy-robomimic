@@ -445,6 +445,13 @@ LSTM 狀態不會延續整個 episode：robomimic 在推論時每 `rnn_horizon` 
 這個 policy 和 BC 一樣，用 `ObservationEncoder.from_config` 與 `make_action_head` 建立
 encoder 與 action head。
 
+在 CUDA 上，cuDNN 執行 `flatten_parameters` 後，會把 LSTM 的權重都放成同一塊記憶體的 view
+（PyTorch 2.11 `torch/nn/modules/rnn.py:237`）。LeRobot 用 safetensors 的 `save_model` 儲存 policy
+（`policies/pretrained.py:160`），而它拒絕儲存「共用同一塊記憶體、卻沒有任何一個完整涵蓋它」
+的 tensor，因此 BC-RNN 的 checkpoint 在雲端 GPU 上存檔失敗（本專案；由 benchmark 執行發現）。
+`RobomimicBCRNNPolicy._save_pretrained` 改為儲存權重的副本。CPU 與 MPS 上的權重是各自獨立的，
+因此測試會讓 LSTM 的權重共用同一塊記憶體來重現這個錯誤（`tests/test_policy_bc_rnn.py`）。
+
 ### 11. Processor
 
 `make_robomimic_bc_rnn_pre_post_processors` 回傳和 BC 相同的預設 pipeline（§7）。推論時

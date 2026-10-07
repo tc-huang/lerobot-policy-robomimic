@@ -104,3 +104,23 @@ def test_save_and_load(tmp_path):
     _, batch = robomimic_reference.random_image_observations(2)
 
     torch.testing.assert_close(loaded.select_action(batch), policy.select_action(batch))
+
+
+def share_one_buffer(lstm: torch.nn.LSTM) -> None:
+    """Makes every LSTM weight a view of one buffer, as cuDNN's `flatten_parameters` does on CUDA."""
+    buffer = torch.cat([parameter.detach().flatten() for parameter in lstm.parameters()])
+    offset = 0
+    for parameter in lstm.parameters():
+        parameter.data = buffer[offset : offset + parameter.numel()].view_as(parameter)
+        offset += parameter.numel()
+
+
+def test_save_and_load_with_cudnn_weights(tmp_path):
+    torch.manual_seed(0)
+    policy = make_policy().eval()
+    share_one_buffer(policy.lstm)
+    policy.save_pretrained(tmp_path)
+    loaded = RobomimicBCRNNPolicy.from_pretrained(tmp_path).eval()
+
+    for name, tensor in policy.state_dict().items():
+        torch.testing.assert_close(loaded.state_dict()[name], tensor, msg=name)

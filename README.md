@@ -495,6 +495,15 @@ trained on.
 The policy builds its encoder and action head with the same
 `ObservationEncoder.from_config` and `make_action_head` as BC.
 
+On CUDA, cuDNN keeps the LSTM's weights as views of one buffer after
+`flatten_parameters` (PyTorch 2.11 `torch/nn/modules/rnn.py:237`). LeRobot saves a
+policy with safetensors' `save_model` (`policies/pretrained.py:160`), which
+refuses tensors that share a buffer none of them covers, so a BC-RNN
+checkpoint failed to save on a cloud GPU (this port; found by the benchmark
+run). `RobomimicBCRNNPolicy._save_pretrained` saves copies of the weights
+instead. CPU and MPS keep separate weights, so a test makes the LSTM's
+weights share one buffer to reproduce the failure (`tests/test_policy_bc_rnn.py`).
+
 ### 11. Processor
 
 `make_robomimic_bc_rnn_pre_post_processors` returns the same default pipelines
