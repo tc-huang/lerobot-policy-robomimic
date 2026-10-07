@@ -1,7 +1,7 @@
 """Converts a robomimic hdf5 dataset into a LeRobotDataset.
 
 Usage:
-    python -m lerobot_policy_robomimic.scripts.convert_dataset \\
+    robomimic-convert-dataset \\
         --hdf5 data/robomimic/lift/ph/image_v15.hdf5 \\
         --repo-id tc-huang/robomimic_lift_ph_image \\
         --task "lift the cube"

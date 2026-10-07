@@ -23,7 +23,7 @@ LeRobotDataset. Image files are generated from robomimic's raw files with its
 `dataset_states_to_obs.py` (Repo `robomimic/scripts/extract_obs_from_raw_datasets.sh:59-61`).
 
 ```bash
-uv run python -m lerobot_policy_robomimic.scripts.convert_dataset \
+uv run robomimic-convert-dataset \
     --hdf5 data/robomimic/lift/ph/image_v15.hdf5 \
     --repo-id <user>/robomimic_lift_ph_image \
     --task "lift the cube"
@@ -88,7 +88,7 @@ LeRobot policy directory (§12):
 ```bash
 curl -L --create-dirs -o data/robomimic/model_zoo/lift_ph_image_epoch_500_succ_100.pth \
     http://downloads.cs.stanford.edu/downloads/rt_benchmark/model_zoo/lift/bc_rnn/lift_ph_image_epoch_500_succ_100.pth
-uv run python -m lerobot_policy_robomimic.scripts.convert_checkpoint \
+uv run robomimic-convert-checkpoint \
     --checkpoint data/robomimic/model_zoo/lift_ph_image_epoch_500_succ_100.pth \
     --output-dir outputs/checkpoints/lift_ph_image_bc_rnn
 ```
@@ -201,6 +201,7 @@ networks instead of importing robomimic at runtime.
 | Distribution name             | `lerobot_policy_robomimic`                                                                                                                                             | LeRobot: an installed distribution whose name starts with `lerobot_policy_` is imported by that name (`utils/import_utils.py:231-255`), which runs `@PreTrainedConfig.register_subclass`                                  |
 | Several policies, one package | Each robomimic algorithm gets its own policy type and its own three modules                                                                                            | This port: the guide shows one policy per package, but the factory only needs those three modules per type, so robomimic's algorithms can share one package and its networks                                              |
 | Package layout                | One subpackage per policy under `policies/`, shared parts in `policies/common/`, and `envs/` and `scripts/` beside them; `tests/` mirrors it                           | LeRobot's own layout: `policies/<name>/`, `policies/common/`, `envs/`, `scripts/`                                                                                                                                         |
+| Commands                      | `robomimic-convert-dataset` and `robomimic-convert-checkpoint`, declared in `[project.scripts]`                                                                        | LeRobot declares its own commands the same way, such as `lerobot-train = lerobot.scripts.lerobot_train:main`; a command name stays the same when a module moves                                                           |
 
 ```
 src/lerobot_policy_robomimic/
@@ -214,7 +215,7 @@ src/lerobot_policy_robomimic/
 │   ├── bc_transformer/  # also transformer.py, used by this policy only
 │   └── bc_vae/          # also vae.py, used by this policy only
 ├── envs/                # the robomimic env config and its robosuite wrapper
-└── scripts/             # dataset and checkpoint converters
+└── scripts/             # converters, run as robomimic-convert-dataset and robomimic-convert-checkpoint
 ```
 
 A network that only one policy uses lives in that policy's subpackage, and

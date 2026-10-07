@@ -21,7 +21,7 @@ uv sync --extra training
 `robomimic/scripts/extract_obs_from_raw_datasets.sh:59-61`）。
 
 ```bash
-uv run python -m lerobot_policy_robomimic.scripts.convert_dataset \
+uv run robomimic-convert-dataset \
     --hdf5 data/robomimic/lift/ph/image_v15.hdf5 \
     --repo-id <user>/robomimic_lift_ph_image \
     --task "lift the cube"
@@ -81,7 +81,7 @@ uv run lerobot-train \
 ```bash
 curl -L --create-dirs -o data/robomimic/model_zoo/lift_ph_image_epoch_500_succ_100.pth \
     http://downloads.cs.stanford.edu/downloads/rt_benchmark/model_zoo/lift/bc_rnn/lift_ph_image_epoch_500_succ_100.pth
-uv run python -m lerobot_policy_robomimic.scripts.convert_checkpoint \
+uv run robomimic-convert-checkpoint \
     --checkpoint data/robomimic/model_zoo/lift_ph_image_epoch_500_succ_100.pth \
     --output-dir outputs/checkpoints/lift_ph_image_bc_rnn
 ```
@@ -183,6 +183,7 @@ robomimic 以 MIT License 釋出。本專案重新實作其網路，執行時不
 | Distribution 名稱     | `lerobot_policy_robomimic`                                                                                                                                       | LeRobot：名稱以 `lerobot_policy_` 開頭的已安裝 distribution 會以該名稱被 import（`utils/import_utils.py:231-255`），進而執行 `@PreTrainedConfig.register_subclass`                                  |
 | 一個套件、多個 policy | 每個 robomimic 演算法各自有 policy type 與三個模組                                                                                                               | 本專案：指南示範一個套件一個 policy，但 factory 只需要每個 type 各有這三個模組，因此 robomimic 的演算法可以共用一個套件與其網路                                                                     |
 | 套件結構              | `policies/` 下每個 policy 一個子套件，共用部分放在 `policies/common/`，旁邊是 `envs/` 與 `scripts/`；`tests/` 採用相同結構                                       | LeRobot 自己的結構：`policies/<name>/`、`policies/common/`、`envs/`、`scripts/`                                                                                                                     |
+| 指令                  | `robomimic-convert-dataset` 與 `robomimic-convert-checkpoint`，宣告在 `[project.scripts]`                                                                        | LeRobot 也以相同方式宣告自己的指令，例如 `lerobot-train = lerobot.scripts.lerobot_train:main`；模組搬動時指令名稱不變                                                                               |
 
 ```
 src/lerobot_policy_robomimic/
@@ -196,7 +197,7 @@ src/lerobot_policy_robomimic/
 │   ├── bc_transformer/  # 另有只給它用的 transformer.py
 │   └── bc_vae/          # 另有只給它用的 vae.py
 ├── envs/                # robomimic env 的 config 與 robosuite 包裝
-└── scripts/             # dataset 與 checkpoint 轉換工具
+└── scripts/             # 轉換工具，以 robomimic-convert-dataset 與 robomimic-convert-checkpoint 執行
 ```
 
 只有一個 policy 使用的網路放在該 policy 的子套件中；env 與轉換工具共用的 dataset 名稱放在

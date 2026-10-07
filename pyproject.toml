@@ -12,6 +12,10 @@ dependencies = [
     "lerobot[dataset]>=0.6.1",
 ]
 
+[project.scripts]
+robomimic-convert-dataset = "lerobot_policy_robomimic.scripts.convert_dataset:main"
+robomimic-convert-checkpoint = "lerobot_policy_robomimic.scripts.convert_checkpoint:main"
+
 [project.optional-dependencies]
 sim = ["robosuite==1.5.1", "mujoco==3.2.7"]
 training = ["lerobot[training]>=0.6.1"]

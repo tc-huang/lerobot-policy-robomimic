@@ -1,7 +1,7 @@
 """Converts a robomimic v0.1 model zoo BC-RNN checkpoint into a LeRobot policy directory.
 
 Usage:
-    python -m lerobot_policy_robomimic.scripts.convert_checkpoint \\
+    robomimic-convert-checkpoint \\
         --checkpoint data/robomimic/model_zoo/lift_ph_image_epoch_500_succ_100.pth \\
         --output-dir outputs/checkpoints/lift_ph_image_bc_rnn
 """
