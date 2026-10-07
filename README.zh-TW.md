@@ -819,3 +819,18 @@ data worker 與 rollout 設定，屬於 `lerobot-train` 與 `lerobot-eval` 的�
 
 每個 policy 的 optimizer 是固定的，不能用設定切換：BC、BC-RNN 與 BC-VAE 用 Adam，BC-Transformer
 用 AdamW，這也是 robomimic 的 config 與 template 對它們用過的唯一 optimizer。
+
+## 引用
+
+本插件是 robomimic 的獨立移植，robomimic 由 Ajay Mandlekar、Danfei Xu、Josiah Wong、
+Soroush Nasiriany、Chen Wang、Rohun Kulkarni、Li Fei-Fei、Silvio Savarese、Yuke Zhu 與
+Roberto Martín-Martín 提出。若使用本插件，請引用他們的[論文](https://arxiv.org/abs/2108.03298)：
+
+```bibtex
+@inproceedings{robomimic2021,
+  title={What Matters in Learning from Offline Human Demonstrations for Robot Manipulation},
+  author={Ajay Mandlekar and Danfei Xu and Josiah Wong and Soroush Nasiriany and Chen Wang and Rohun Kulkarni and Li Fei-Fei and Silvio Savarese and Yuke Zhu and Roberto Mart\'{i}n-Mart\'{i}n},
+  booktitle={Conference on Robot Learning (CoRL)},
+  year={2021}
+}
+```

@@ -933,3 +933,19 @@ listed; they are `lerobot-train` and `lerobot-eval` arguments.
 Each policy has its optimizer fixed rather than chosen by a setting: Adam for
 BC, BC-RNN, and BC-VAE, and AdamW for BC-Transformer, which are the only
 optimizers robomimic's configs and templates use for them.
+
+## Citation
+
+This plugin is an independent port of robomimic, which was developed by Ajay
+Mandlekar, Danfei Xu, Josiah Wong, Soroush Nasiriany, Chen Wang, Rohun
+Kulkarni, Li Fei-Fei, Silvio Savarese, Yuke Zhu, and Roberto Martín-Martín. If
+you use it, please cite their [paper](https://arxiv.org/abs/2108.03298):
+
+```bibtex
+@inproceedings{robomimic2021,
+  title={What Matters in Learning from Offline Human Demonstrations for Robot Manipulation},
+  author={Ajay Mandlekar and Danfei Xu and Josiah Wong and Soroush Nasiriany and Chen Wang and Rohun Kulkarni and Li Fei-Fei and Silvio Savarese and Yuke Zhu and Roberto Mart\'{i}n-Mart\'{i}n},
+  booktitle={Conference on Robot Learning (CoRL)},
+  year={2021}
+}
+```
