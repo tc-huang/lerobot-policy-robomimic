@@ -789,3 +789,33 @@ robomimic 的 `get_lang_emb` 相同（`tests/test_language.py`）。在轉換後
 4100 萬參數的 policy，並儲存包含 CLIP step 的 preprocessor。接著 `lerobot-eval` 以 `robomimic`
 env 載入它，env 的 task 描述是 dataset 的 `lift the cube`，並執行兩個 30 步的 episode。這裡不
 報告成功率：robomimic 沒有公布語言條件化的成功率，而論文的每個任務也只有一句指令。
+
+## 未移植的設定
+
+下列 robomimic 選項都沒有移植。論文的 BC 與 BC-RNN 實驗（原 repo
+`robomimic/scripts/generate_paper_configs.py`）以及 BC-Transformer 的 template 都沒有用到它們，
+因此不影響本專案要重現的結果。LeRobot 已經涵蓋的選項，例如 batch size、epoch、seed、裝置、
+data worker 與 rollout 設定，屬於 `lerobot-train` 與 `lerobot-eval` 的參數，不列在這裡。
+
+| 選項                                                                                            | robomimic 預設值與論文設定                       | 來源                                                                                                             | 說明位置                                       |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Depth 與 scan 觀測（`ScanCore`）                                                                | 無；論文只用 low-dim 與 RGB                      | 原 repo `robomimic/config/base_config.py:271-272`、`:313`；`robomimic/models/obs_core.py:240`                    | 本表                                           |
+| 依 goal 條件化的觀測（`modalities.goal`、`train.goal_mode`）                                    | 無；論文把 goal 清單設為空                       | 原 repo `robomimic/config/base_config.py:230`、`:273-276`；`robomimic/scripts/generate_paper_configs.py:147-148` | 本表                                           |
+| Low-dim 觀測的 encoder 與 randomizer（`encoder.low_dim`）                                       | 無                                               | 原 repo `robomimic/config/base_config.py:284-291`                                                                | 本表                                           |
+| 其他相機 backbone：`ResNet50Conv`、`R3MConv`、`MVPConv`、`ShallowConv`                          | `ResNet18Conv`，也就是論文使用的                 | 原 repo `robomimic/models/base_nets.py:561`、`:749`、`:828`、`:993`                                              | 本表                                           |
+| `SpatialMeanPool` 或不做 pooling                                                                | 論文用 `SpatialSoftmax`                          | 原 repo `robomimic/scripts/generate_paper_configs.py:156`；`robomimic/models/base_nets.py:1248`                  | 本表                                           |
+| `ColorRandomizer` 與 `GaussianNoiseRandomizer`                                                  | 論文只用 `CropRandomizer`                        | 原 repo `robomimic/scripts/generate_paper_configs.py:163`；`robomimic/models/obs_core.py:629`、`:786`            | 本表                                           |
+| ImageNet 權重、coordinate convolution、裁切位置編碼、多個裁切、可學習或加噪聲的 spatial softmax | 論文都關閉                                       | §3                                                                                                               | §3                                             |
+| BC 與 BC-RNN 的多步觀測（`train.frame_stack > 1`）                                              | 1，論文維持不變                                  | 原 repo `robomimic/config/base_config.py:195`                                                                    | 本表；`n_obs_steps` 不是 1 時丟出 `ValueError` |
+| Gaussian 與 GMM head 用 `exp` 輸出標準差                                                        | `softplus`                                       | §5                                                                                                               | §5                                             |
+| GRU、雙向 LSTM 與 open-loop 的 BC-RNN                                                           | 單向 LSTM、closed loop                           | §8                                                                                                               | §8                                             |
+| BC-Transformer 監督所有步、預測未來 action、其他位置編碼、GEGLU                                 | template 中都關閉                                | §13                                                                                                              | §13                                            |
+| BC-VAE 的 categorical prior 與 `freeze_encoder`                                                 | 關閉；只有 BCQ 會設定 `freeze_encoder`           | §17、§19                                                                                                         | §17、§19                                       |
+| BC、BC-RNN 與 BC-VAE 的 learning rate schedule（`multistep`、`linear`、`cosine`）               | 沒有衰減的 epoch，learning rate 固定，和論文相同 | 原 repo `robomimic/config/bc_config.py:28-31`；`robomimic/utils/torch_utils.py:141-180`                          | 本表                                           |
+| 選擇 optimizer（`optimizer_type`）                                                              | Adam；BC-Transformer 的 template 用 AdamW        | 原 repo `robomimic/config/bc_config.py:27`；`robomimic/utils/torch_utils.py:106-115`                             | §2、§13                                        |
+| Action 正規化與旋轉格式轉換（`train.action_config`）                                            | 不正規化                                         | 原 repo `robomimic/config/base_config.py:223-227`                                                                | 本表                                           |
+| Observation 正規化（`train.hdf5_normalize_obs`）                                                | 關閉                                             | 原 repo `robomimic/config/base_config.py:181`                                                                    | §2（正規化）                                   |
+| 多個 dataset 依大小加權（`train.normalize_weights_by_ds_size`）                                 | 關閉；論文只用一個 dataset 訓練                  | 原 repo `robomimic/config/base_config.py:161`                                                                    | 本表                                           |
+
+每個 policy 的 optimizer 是固定的，不能用設定切換：BC、BC-RNN 與 BC-VAE 用 Adam，BC-Transformer
+用 AdamW，這也是 robomimic 的 config 與 template 對它們用過的唯一 optimizer。
