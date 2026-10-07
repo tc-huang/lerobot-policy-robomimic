@@ -4,17 +4,31 @@
 
 本專案是 [LeRobot](https://github.com/huggingface/lerobot) 的 out-of-tree
 policy 插件，將 [robomimic](https://robomimic.github.io/)（Mandlekar 等人，2021）
-中的 imitation learning policy（例如 BC 與 BC-RNN）移植到 LeRobot v0.6.1，並註冊
-為 LeRobot 的 policy type。移植後的 policy 可以用 `lerobot-train` 訓練、以
-`lerobot-eval` 評估，網路架構與訓練設定則盡可能貼近原始實作。
+中的 imitation learning policy 移植到 LeRobot v0.6.1，並註冊為 LeRobot 的 policy type：
+BC（可選 deterministic、Gaussian 或 GMM action head）、BC-RNN、BC-Transformer 與 BC-VAE。
+每個 policy 都能依 task 的 CLIP embedding 條件化，另有 `robomimic` env 重建 robosuite 任務
+供評估使用。移植後的 policy 可以用 `lerobot-train` 訓練、以 `lerobot-eval` 評估，網路架構
+與訓練設定則盡可能貼近原始實作。
+
+## 狀態
+
+每個網路都在相同權重下和 robomimic 自己的實作比對過（`tests/`）；robomimic model zoo 的
+Lift BC-RNN checkpoint 轉換後以 `lerobot-eval` 評估，成功率為 100%（§12）。用本插件訓練的
+policy 還沒有以論文的完整訓練長度執行過，因此這裡尚未重現論文的成功率。
 
 ## 使用方式
 
-安裝插件與 `lerobot-train` 需要的依賴：
+連同 robomimic submodule 一起 clone 本 repo（測試會和它比對），再安裝插件與
+`lerobot-train` 需要的依賴：
 
 ```bash
+git clone --recursive https://github.com/tc-huang/lerobot-policy-robomimic.git
+cd lerobot-policy-robomimic
 uv sync --extra training
 ```
+
+已經 clone 過的話，用 `git submodule update --init` 取得 robomimic。沒有它插件仍可使用，
+只是和 robomimic 比對的測試會被跳過。
 
 把含有 observation 的 robomimic hdf5 檔轉成 LeRobotDataset。影像檔是用 robomimic 的
 `dataset_states_to_obs.py` 從 raw 檔產生的（原 repo

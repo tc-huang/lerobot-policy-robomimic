@@ -4,19 +4,38 @@ English | [繁體中文](README.zh-TW.md)
 
 An out-of-tree [LeRobot](https://github.com/huggingface/lerobot) policy plugin
 that ports the imitation learning policies of
-[robomimic](https://robomimic.github.io/) (Mandlekar et al., 2021), such as BC
-and BC-RNN, to LeRobot v0.6.1 and registers them as LeRobot policy types. The
-ported policies can be trained with `lerobot-train` and evaluated with
-`lerobot-eval`, while following the network architectures and training
-recipes of the original implementation as closely as possible.
+[robomimic](https://robomimic.github.io/) (Mandlekar et al., 2021) to LeRobot
+v0.6.1 and registers them as LeRobot policy types: BC, with deterministic,
+Gaussian, or GMM action heads; BC-RNN; BC-Transformer; and BC-VAE. Each can be
+conditioned on the task's CLIP embedding, and a `robomimic` env rebuilds the
+robosuite tasks for evaluation. The ported policies can be trained with
+`lerobot-train` and evaluated with `lerobot-eval`, while following the network
+architectures and training recipes of the original implementation as closely
+as possible.
+
+## Status
+
+Every network is checked against robomimic's own implementation on the same
+weights (`tests/`), and robomimic's model zoo BC-RNN checkpoint for Lift
+reaches a 100% success rate when converted and evaluated with `lerobot-eval`
+(§12). Policies trained with this plugin have not yet been run at the paper's
+full training length, so the paper's success rates are not reproduced here
+yet.
 
 ## Usage
 
-Install the plugin with the dependencies of `lerobot-train`:
+Clone the repository with robomimic as a submodule, which the tests compare
+against, and install the plugin with the dependencies of `lerobot-train`:
 
 ```bash
+git clone --recursive https://github.com/tc-huang/lerobot-policy-robomimic.git
+cd lerobot-policy-robomimic
 uv sync --extra training
 ```
+
+In an existing clone, `git submodule update --init` fetches robomimic. Without
+it the plugin still works, and the tests that compare against robomimic are
+skipped.
 
 Convert a robomimic hdf5 file that contains observations into a
 LeRobotDataset. Image files are generated from robomimic's raw files with its
@@ -180,7 +199,7 @@ Sources are cited as follows:
   [What Matters in Learning from Offline Human Demonstrations for Robot Manipulation](https://arxiv.org/abs/2108.03298),
   CoRL 2021.
 - **Repo**: [ARISE-Initiative/robomimic](https://github.com/ARISE-Initiative/robomimic)
-  at `d309eae`, vendored as the `third_party/robomimic` submodule. Paths are
+  at `d309eae`, referenced as the `third_party/robomimic` submodule. Paths are
   relative to that directory; a `v0.1.0:` prefix marks a path at that tag,
   readable with `git -C third_party/robomimic show v0.1.0:<path>`.
 - **LeRobot**: LeRobot v0.6.1, either the

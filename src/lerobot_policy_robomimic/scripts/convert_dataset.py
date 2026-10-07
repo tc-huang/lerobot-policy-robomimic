@@ -3,7 +3,7 @@
 Usage:
     robomimic-convert-dataset \\
         --hdf5 data/robomimic/lift/ph/image_v15.hdf5 \\
-        --repo-id tc-huang/robomimic_lift_ph_image \\
+        --repo-id <user>/robomimic_lift_ph_image \\
         --task "lift the cube"
 """
 
