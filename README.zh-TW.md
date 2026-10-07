@@ -834,3 +834,16 @@ Roberto Martín-Martín 提出。若使用本插件，請引用他們的[論文]
   year={2021}
 }
 ```
+
+## 授權
+
+本 repo 的程式碼採用 [Apache License 2.0](LICENSE) 授權。
+
+- 本插件移植自 [robomimic](https://github.com/ARISE-Initiative/robomimic)，其採用 MIT
+  授權，Copyright (c) 2021 Stanford Vision and Learning Lab。原始程式碼以
+  `third_party/robomimic` submodule 參照，並未複製到本 repo 中。
+- `.pre-commit-config.yaml` 與 `pyproject.toml` 中的工具設定改寫自
+  [LeRobot](https://github.com/huggingface/lerobot)，其採用 Apache License 2.0 授權。
+- 本 repo 不含任何模型權重或 dataset。robomimic 的 dataset 與 model zoo checkpoint、由它們
+  轉換而來的 LeRobot dataset 與 policy，以及語言條件化使用的 `openai/clip-vit-large-patch14`
+  模型，適用其各自的條款。

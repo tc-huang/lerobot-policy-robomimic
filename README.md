@@ -949,3 +949,20 @@ you use it, please cite their [paper](https://arxiv.org/abs/2108.03298):
   year={2021}
 }
 ```
+
+## License
+
+The code in this repository is licensed under the
+[Apache License 2.0](LICENSE).
+
+- This plugin is a port of [robomimic](https://github.com/ARISE-Initiative/robomimic),
+  which is licensed under the MIT License, Copyright (c) 2021 Stanford Vision
+  and Learning Lab. The original code is referenced as the
+  `third_party/robomimic` submodule and is not copied into this repository.
+- `.pre-commit-config.yaml` and the tool settings in `pyproject.toml` are
+  adapted from [LeRobot](https://github.com/huggingface/lerobot), which is
+  licensed under the Apache License 2.0.
+- This repository contains no model weights or datasets. The robomimic
+  datasets and model zoo checkpoints, the LeRobot datasets and policies
+  converted from them, and the `openai/clip-vit-large-patch14` model used for
+  language conditioning are subject to their own terms.
