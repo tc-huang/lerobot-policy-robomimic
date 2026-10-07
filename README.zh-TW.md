@@ -16,19 +16,79 @@ BC（可選 deterministic、Gaussian 或 GMM action head）、BC-RNN、BC-Transf
 Lift BC-RNN checkpoint 轉換後以 `lerobot-eval` 評估，成功率為 100%（§12）。用本插件訓練的
 policy 還沒有以論文的完整訓練長度執行過，因此這裡尚未重現論文的成功率。
 
-## 使用方式
+## 安裝
 
-連同 robomimic submodule 一起 clone 本 repo（測試會和它比對），再安裝插件與
-`lerobot-train` 需要的依賴：
+| 需求       | 說明                                                                              |
+| ---------- | --------------------------------------------------------------------------------- |
+| Python     | 3.12 以上，以 [uv](https://docs.astral.sh/uv/) 管理                               |
+| 訓練       | Apple silicon 的 macOS（MPS）或有 NVIDIA GPU 的 Linux；兩者都跑過 `lerobot-train` |
+| 模擬       | robosuite 1.5.1 與 MuJoCo 3.2.7，來自 `sim` extra；無螢幕的 Linux 以 EGL 算圖     |
+| 語言條件化 | `language` extra；CLIP 模型約 1.7 GB，第一次使用時下載                            |
 
 ```bash
 git clone --recursive https://github.com/tc-huang/lerobot-policy-robomimic.git
 cd lerobot-policy-robomimic
-uv sync --extra training
+uv sync
 ```
 
-已經 clone 過的話，用 `git submodule update --init` 取得 robomimic。沒有它插件仍可使用，
-只是和 robomimic 比對的測試會被跳過。
+`third_party/robomimic` submodule 放的是 robomimic 的程式碼，供測試比對；沒有它插件仍可使用，
+已經 clone 過的話可以用 `git submodule update --init` 取得。其他功能由選用的 extra 提供：
+
+| 指令                       | 加入                                                         |
+| -------------------------- | ------------------------------------------------------------ |
+| `uv sync`                  | policy 與 dataset、checkpoint 轉換工具                       |
+| `uv sync --extra training` | `lerobot-train` 所需的 `accelerate` 與 `wandb`               |
+| `uv sync --extra sim`      | `robomimic` env 與 `lerobot-eval` 所需的 robosuite 與 MuJoCo |
+| `uv sync --extra language` | 計算 task CLIP embedding 所需的 `transformers`               |
+
+`uv sync` 會移除沒有指定的 extra，因此需要的 extra 要一次全部列出。`uv run --extra <name>`
+會在執行指令前安裝該 extra，「快速開始」就是這樣在剛 clone 的 repo 中直接執行的。
+
+在無螢幕的 Linux 上，robosuite 還需要幾個系統函式庫與 EGL 算圖：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libegl1 libgl1 libglib2.0-0 libosmesa6 ffmpeg
+export MUJOCO_GL=egl
+```
+
+## 快速開始
+
+在模擬中評估 robomimic 釋出的 Lift BC-RNN checkpoint。env 是依 robomimic Lift 示範資料的
+env args 重建的，因此只需要 low-dim 檔（21 MB），再加上 checkpoint 使用的兩支 84×84 相機：
+
+```bash
+# 1. 從 robomimic 的 Hugging Face repo 下載 Lift 示範資料並轉換。
+uv run --extra sim hf download robomimic/robomimic_datasets v1.5/lift/ph/low_dim_v15.hdf5 \
+    --repo-type dataset --local-dir data/robomimic
+uv run --extra sim robomimic-convert-dataset \
+    --hdf5 data/robomimic/v1.5/lift/ph/low_dim_v15.hdf5 \
+    --repo-id local/robomimic_lift_ph_low_dim \
+    --task "lift the cube"
+
+# 2. 下載 model zoo checkpoint（140 MB）並轉換成 LeRobot policy。
+curl -L --create-dirs -o data/robomimic/model_zoo/lift_ph_image_epoch_500_succ_100.pth \
+    http://downloads.cs.stanford.edu/downloads/rt_benchmark/model_zoo/lift/bc_rnn/lift_ph_image_epoch_500_succ_100.pth
+uv run --extra sim robomimic-convert-checkpoint \
+    --checkpoint data/robomimic/model_zoo/lift_ph_image_epoch_500_succ_100.pth \
+    --output-dir outputs/checkpoints/lift_ph_image_bc_rnn
+
+# 3. 執行 10 個 episode。
+uv run --extra sim lerobot-eval \
+    --policy.path=outputs/checkpoints/lift_ph_image_bc_rnn \
+    --env.type=robomimic \
+    --env.env_args_path=$HOME/.cache/huggingface/lerobot/local/robomimic_lift_ph_low_dim/meta/robomimic_env_args.json \
+    --env.camera_names='[agentview,robot0_eye_in_hand]' \
+    --env.camera_height=84 \
+    --env.camera_width=84 \
+    --eval.n_episodes=10 \
+    --eval.batch_size=1
+```
+
+policy 在 10 個 episode 中有 9 個成功舉起方塊；跑 50 個 episode 時全部成功（§12）。
+結果寫在 `outputs/eval/` 下。下面的「使用方式」說明如何訓練各個 policy。
+
+## 使用方式
 
 把含有 observation 的 robomimic hdf5 檔轉成 LeRobotDataset。影像檔是用 robomimic 的
 `dataset_states_to_obs.py` 從 raw 檔產生的（原 repo

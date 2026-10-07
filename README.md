@@ -22,20 +22,84 @@ reaches a 100% success rate when converted and evaluated with `lerobot-eval`
 full training length, so the paper's success rates are not reproduced here
 yet.
 
-## Usage
+## Installation
 
-Clone the repository with robomimic as a submodule, which the tests compare
-against, and install the plugin with the dependencies of `lerobot-train`:
+| Requirement           | Value                                                                                     |
+| --------------------- | ----------------------------------------------------------------------------------------- |
+| Python                | 3.12 or newer, managed with [uv](https://docs.astral.sh/uv/)                              |
+| Training              | macOS on Apple silicon (MPS) or Linux with an NVIDIA GPU; `lerobot-train` has run on both |
+| Simulation            | robosuite 1.5.1 and MuJoCo 3.2.7, from the `sim` extra; headless Linux renders with EGL   |
+| Language conditioning | The `language` extra; the CLIP model, about 1.7 GB, is downloaded on first use            |
 
 ```bash
 git clone --recursive https://github.com/tc-huang/lerobot-policy-robomimic.git
 cd lerobot-policy-robomimic
-uv sync --extra training
+uv sync
 ```
 
-In an existing clone, `git submodule update --init` fetches robomimic. Without
-it the plugin still works, and the tests that compare against robomimic are
-skipped.
+The `third_party/robomimic` submodule holds robomimic's code for the tests to
+compare against; the plugin works without it, and `git submodule update --init`
+fetches it in an existing clone. Optional extras add the rest:
+
+| Command                    | Adds                                                            |
+| -------------------------- | --------------------------------------------------------------- |
+| `uv sync`                  | The policies and the dataset and checkpoint converters          |
+| `uv sync --extra training` | `accelerate` and `wandb` for `lerobot-train`                    |
+| `uv sync --extra sim`      | robosuite and MuJoCo for the `robomimic` env and `lerobot-eval` |
+| `uv sync --extra language` | `transformers`, for the CLIP embedding of the task              |
+
+`uv sync` removes extras it is not given, so pass every extra you need at
+once. `uv run --extra <name>` installs an extra before running a command,
+which is how the Quick start runs in a fresh clone.
+
+On headless Linux, robosuite also needs a few system libraries and EGL
+rendering:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libegl1 libgl1 libglib2.0-0 libosmesa6 ffmpeg
+export MUJOCO_GL=egl
+```
+
+## Quick start
+
+Evaluate robomimic's released BC-RNN checkpoint for Lift in simulation. The
+env is rebuilt from the env args of robomimic's Lift demos, so the low-dim
+file (21 MB) is enough, with the checkpoint's two 84×84 cameras added:
+
+```bash
+# 1. Download the Lift demos from robomimic's Hugging Face repo and convert them.
+uv run --extra sim hf download robomimic/robomimic_datasets v1.5/lift/ph/low_dim_v15.hdf5 \
+    --repo-type dataset --local-dir data/robomimic
+uv run --extra sim robomimic-convert-dataset \
+    --hdf5 data/robomimic/v1.5/lift/ph/low_dim_v15.hdf5 \
+    --repo-id local/robomimic_lift_ph_low_dim \
+    --task "lift the cube"
+
+# 2. Download the model zoo checkpoint (140 MB) and convert it into a LeRobot policy.
+curl -L --create-dirs -o data/robomimic/model_zoo/lift_ph_image_epoch_500_succ_100.pth \
+    http://downloads.cs.stanford.edu/downloads/rt_benchmark/model_zoo/lift/bc_rnn/lift_ph_image_epoch_500_succ_100.pth
+uv run --extra sim robomimic-convert-checkpoint \
+    --checkpoint data/robomimic/model_zoo/lift_ph_image_epoch_500_succ_100.pth \
+    --output-dir outputs/checkpoints/lift_ph_image_bc_rnn
+
+# 3. Run 10 episodes.
+uv run --extra sim lerobot-eval \
+    --policy.path=outputs/checkpoints/lift_ph_image_bc_rnn \
+    --env.type=robomimic \
+    --env.env_args_path=$HOME/.cache/huggingface/lerobot/local/robomimic_lift_ph_low_dim/meta/robomimic_env_args.json \
+    --env.camera_names='[agentview,robot0_eye_in_hand]' \
+    --env.camera_height=84 \
+    --env.camera_width=84 \
+    --eval.n_episodes=10 \
+    --eval.batch_size=1
+```
+
+The policy lifts the cube in 9 of the 10 episodes; over 50 episodes it
+succeeds in all of them (§12). Results are written under `outputs/eval/`.
+Usage below shows how to train each policy.
+
+## Usage
 
 Convert a robomimic hdf5 file that contains observations into a
 LeRobotDataset. Image files are generated from robomimic's raw files with its
