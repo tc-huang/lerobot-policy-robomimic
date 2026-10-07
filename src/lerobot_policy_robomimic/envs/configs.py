@@ -12,7 +12,7 @@ from lerobot.envs.configs import EnvConfig
 from lerobot.envs.utils import freeze_after_episode_end
 from lerobot.utils.constants import ACTION, OBS_ENV_STATE, OBS_IMAGES, OBS_STATE
 
-from ..scripts.convert_dataset import DEFAULT_STATE_KEYS
+from ..dataset_format import DEFAULT_STATE_KEYS
 
 # Rollout horizons of robomimic's proficient-human datasets, by robosuite env name.
 ROLLOUT_HORIZONS = {

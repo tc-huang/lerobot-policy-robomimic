@@ -17,9 +17,9 @@ from lerobot.policies.factory import make_pre_post_processors
 from lerobot.utils.constants import ACTION, OBS_ENV_STATE, OBS_IMAGES, OBS_STATE
 from torch import Tensor
 
+from ..dataset_format import DEFAULT_STATE_KEYS, ENV_STATE_KEY, IMAGE_SUFFIX
 from ..policies.bc_rnn.configuration_robomimic_bc_rnn import RobomimicBCRNNConfig
 from ..policies.bc_rnn.modeling_robomimic_bc_rnn import RobomimicBCRNNPolicy
-from .convert_dataset import DEFAULT_STATE_KEYS, ENV_STATE_KEY, IMAGE_SUFFIX
 
 ENCODER_PREFIX = "policy.nets.encoder.nets.obs.obs_nets."
 

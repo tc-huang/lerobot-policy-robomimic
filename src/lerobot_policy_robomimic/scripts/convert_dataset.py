@@ -17,12 +17,7 @@ import numpy as np
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 from lerobot.utils.constants import ACTION, OBS_ENV_STATE, OBS_IMAGES, OBS_STATE
 
-# Proprioceptive keys used by every robomimic paper config (scripts/generate_paper_configs.py).
-DEFAULT_STATE_KEYS = ("robot0_eef_pos", "robot0_eef_quat", "robot0_gripper_qpos")
-ENV_STATE_KEY = "object"
-IMAGE_SUFFIX = "_image"
-MASKS_FILE = "meta/robomimic_masks.json"
-ENV_ARGS_FILE = "meta/robomimic_env_args.json"
+from ..dataset_format import DEFAULT_STATE_KEYS, ENV_ARGS_FILE, ENV_STATE_KEY, IMAGE_SUFFIX, MASKS_FILE
 
 # Above this many bytes of raw pixels, images are stored as MP4 videos instead of lossless PNG images.
 VIDEO_THRESHOLD_BYTES = 2 * 1024**3

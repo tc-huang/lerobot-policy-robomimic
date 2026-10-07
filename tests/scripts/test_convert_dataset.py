@@ -6,13 +6,8 @@ import torch
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 from lerobot.utils.constants import ACTION, OBS_ENV_STATE, OBS_IMAGES, OBS_STATE
 
-from lerobot_policy_robomimic.scripts.convert_dataset import (
-    ENV_ARGS_FILE,
-    MASKS_FILE,
-    VIDEO_THRESHOLD_BYTES,
-    convert,
-    use_videos,
-)
+from lerobot_policy_robomimic.dataset_format import ENV_ARGS_FILE, MASKS_FILE
+from lerobot_policy_robomimic.scripts.convert_dataset import VIDEO_THRESHOLD_BYTES, convert, use_videos
 
 DEMO_LENGTHS = {"demo_0": 2, "demo_1": 3, "demo_10": 4}
 # robomimic's camera size; LeRobot's default libsvtav1 encoder never finishes on 8x8 frames.

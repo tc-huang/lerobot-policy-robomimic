@@ -205,6 +205,7 @@ networks instead of importing robomimic at runtime.
 ```
 src/lerobot_policy_robomimic/
 ├── __init__.py          # registers every policy and the env with LeRobot
+├── dataset_format.py    # robomimic keys and converted-dataset files shared by envs/ and scripts/
 ├── policies/
 │   ├── common/          # config, camera and observation encoders, MLP, action heads,
 │   │                    # language, processors, and schedulers shared by the policies
@@ -216,7 +217,9 @@ src/lerobot_policy_robomimic/
 └── scripts/             # dataset and checkpoint converters
 ```
 
-A network that only one policy uses lives in that policy's subpackage.
+A network that only one policy uses lives in that policy's subpackage, and
+the env reads the dataset names it shares with the converters from
+`dataset_format.py` rather than from a converter script.
 Everything the package exports, such as `RobomimicBCConfig`, is imported from
 `lerobot_policy_robomimic` itself.
 

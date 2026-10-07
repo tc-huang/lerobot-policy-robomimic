@@ -187,6 +187,7 @@ robomimic 以 MIT License 釋出。本專案重新實作其網路，執行時不
 ```
 src/lerobot_policy_robomimic/
 ├── __init__.py          # 向 LeRobot 註冊所有 policy 與 env
+├── dataset_format.py    # envs/ 與 scripts/ 共用的 robomimic key 與轉換後 dataset 的檔名
 ├── policies/
 │   ├── common/          # 各 policy 共用的 config、相機與 observation encoder、MLP、
 │   │                    # action head、語言、processor 與 scheduler
@@ -198,7 +199,8 @@ src/lerobot_policy_robomimic/
 └── scripts/             # dataset 與 checkpoint 轉換工具
 ```
 
-只有一個 policy 使用的網路放在該 policy 的子套件中。套件對外提供的名稱，例如
+只有一個 policy 使用的網路放在該 policy 的子套件中；env 與轉換工具共用的 dataset 名稱放在
+`dataset_format.py`，env 不必從轉換腳本讀取它們。套件對外提供的名稱，例如
 `RobomimicBCConfig`，都直接從 `lerobot_policy_robomimic` import。
 
 ## BC（`robomimic_bc`）
