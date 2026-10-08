@@ -4,7 +4,20 @@ import math
 
 import torch
 from torch import Tensor, nn
+from torch.nn.functional import interpolate
 from torchvision.models import resnet18
+
+
+class Resize(nn.Module):
+    """Resizes images with antialiased bilinear interpolation."""
+
+    def __init__(self, shape: tuple[int, int]):
+        super().__init__()
+        self.shape = shape
+
+    def forward(self, images: Tensor) -> Tensor:
+        """Resizes (B, C, H, W) images to (B, C, height, width)."""
+        return interpolate(images, size=self.shape, mode="bilinear", align_corners=False, antialias=True)
 
 
 class RandomCrop(nn.Module):

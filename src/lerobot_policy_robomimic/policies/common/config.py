@@ -20,6 +20,8 @@ class RobomimicPolicyConfig(PreTrainedConfig):
     Args:
         use_env_state: Whether the policy reads `observation.environment_state`, the
             privileged object state that only robomimic's low-dim experiments use.
+        resize_shape: (height, width) every camera is resized to, with antialiased bilinear
+            interpolation, before it is cropped; None keeps the dataset's size.
         crop_shape: (height, width) of the random crop taken from each camera during training,
             and of the center crop at inference; None disables cropping.
         random_crop_at_inference: Whether cameras are also cropped at random positions outside
@@ -47,6 +49,7 @@ class RobomimicPolicyConfig(PreTrainedConfig):
 
     use_env_state: bool = False
 
+    resize_shape: tuple[int, int] | None = None
     crop_shape: tuple[int, int] | None = (76, 76)
     random_crop_at_inference: bool = False
     spatial_softmax_num_kp: int = 32
@@ -98,10 +101,11 @@ class RobomimicPolicyConfig(PreTrainedConfig):
         if self.use_env_state and self.env_state_feature is None:
             raise ValueError("use_env_state is set, but there is no 'observation.environment_state' input.")
         for key, feature in self.image_features.items():
+            size = self.resize_shape or feature.shape[1:]
             if self.crop_shape is not None and any(
-                crop >= size for crop, size in zip(self.crop_shape, feature.shape[1:], strict=True)
+                crop >= side for crop, side in zip(self.crop_shape, size, strict=True)
             ):
-                raise ValueError(f"crop_shape {self.crop_shape} must be smaller than {key} {feature.shape}.")
+                raise ValueError(f"crop_shape {self.crop_shape} must be smaller than {key}'s {tuple(size)}.")
 
     def get_optimizer_preset(self) -> AdamConfig:
         return AdamConfig(

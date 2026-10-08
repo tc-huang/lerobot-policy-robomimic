@@ -2,7 +2,7 @@ import pytest
 import robomimic_reference
 import torch
 
-from lerobot_policy_robomimic.policies.common.vision import ImageEncoder, RandomCrop, SpatialSoftmax
+from lerobot_policy_robomimic.policies.common.vision import ImageEncoder, RandomCrop, Resize, SpatialSoftmax
 
 CROP = (76, 76)
 
@@ -36,6 +36,17 @@ def test_random_crop_can_stay_random_at_inference():
     crop = RandomCrop(CROP, random_at_inference=True).eval()
 
     assert not torch.equal(crop(images), RandomCrop(CROP).eval()(images))
+
+
+def test_resize_keeps_strokes_thinner_than_its_step():
+    lines = torch.zeros(1, 3, 480, 640)
+    lines[..., ::4] = 1.0
+
+    inner = Resize((240, 320))(lines)[..., 1:-1]
+
+    assert (inner > 0).all()
+    torch.testing.assert_close(inner.mean(), torch.tensor(0.25))
+    assert (torch.nn.functional.interpolate(lines, size=(240, 320), mode="bilinear")[..., 1:-1] == 0).any()
 
 
 def test_spatial_softmax_matches_robomimic():

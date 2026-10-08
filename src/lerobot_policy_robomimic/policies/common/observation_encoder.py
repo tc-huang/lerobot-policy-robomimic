@@ -6,30 +6,38 @@ from lerobot.utils.constants import OBS_IMAGES
 from torch import Tensor, nn
 
 from .config import RobomimicPolicyConfig
-from .vision import ImageEncoder, RandomCrop
+from .vision import ImageEncoder, RandomCrop, Resize
 
 
 class CameraEncoder(nn.Module):
-    """Crops a camera's images, encodes them with `ImageEncoder`, and applies an activation."""
+    """Resizes and crops a camera's images, encodes them with `ImageEncoder`, and applies an activation."""
 
-    def __init__(self, crop: nn.Module, encoder: ImageEncoder, activation: nn.Module):
+    def __init__(
+        self,
+        crop: nn.Module,
+        encoder: ImageEncoder,
+        activation: nn.Module,
+        resize: nn.Module | None = None,
+    ):
         super().__init__()
+        self.resize = resize or nn.Identity()
         self.crop = crop
         self.encoder = encoder
         self.activation = activation
 
     def forward(self, images: Tensor, language: Tensor | None = None) -> Tensor:
         """Maps (B, 3, H, W) images, and (B, language_dim) embeddings for FiLM, to (B, feature_dim)."""
-        return self.activation(self.encoder(self.crop(images), language))
+        return self.activation(self.encoder(self.crop(self.resize(images)), language))
 
 
 class ObservationEncoder(nn.Module):
     """Concatenates vector observations as they are and camera features from `ImageEncoder`.
 
-    Features follow the order of `features`. Each camera is cropped, encoded, and, with
-    `camera_activation`, passed through a ReLU. A language feature holds one embedding per
-    sample, which is repeated over any further leading dimensions such as time. With `film`,
-    that embedding modulates every camera's ResNet instead of joining the features.
+    Features follow the order of `features`. Each camera is resized when `resize_shape` is
+    given, cropped, encoded, and, with `camera_activation`, passed through a ReLU. A language
+    feature holds one embedding per sample, which is repeated over any further leading
+    dimensions such as time. With `film`, that embedding modulates every camera's ResNet
+    instead of joining the features.
     """
 
     def __init__(
@@ -41,6 +49,7 @@ class ObservationEncoder(nn.Module):
         random_crop_at_inference: bool = False,
         camera_activation: bool = True,
         film: bool = False,
+        resize_shape: tuple[int, int] | None = None,
     ):
         super().__init__()
         self.keys = list(features)
@@ -55,7 +64,7 @@ class ObservationEncoder(nn.Module):
         self.output_dim = 0
         for key, feature in features.items():
             if feature.type is FeatureType.VISUAL:
-                height, width = crop_shape or feature.shape[1:]
+                height, width = crop_shape or resize_shape or feature.shape[1:]
                 self.cameras[self.camera_name(key)] = CameraEncoder(
                     crop=(
                         RandomCrop(crop_shape, random_crop_at_inference)
@@ -64,6 +73,7 @@ class ObservationEncoder(nn.Module):
                     ),
                     encoder=ImageEncoder(height, width, num_kp, image_feature_dim, language_dim),
                     activation=nn.ReLU() if camera_activation else nn.Identity(),
+                    resize=Resize(resize_shape) if resize_shape is not None else None,
                 )
                 self.output_dim += image_feature_dim
             elif not (film and key == self.language_key):
@@ -82,6 +92,7 @@ class ObservationEncoder(nn.Module):
             config.random_crop_at_inference,
             camera_activation,
             film=config.language_conditioning == "film",
+            resize_shape=config.resize_shape,
         )
 
     @staticmethod

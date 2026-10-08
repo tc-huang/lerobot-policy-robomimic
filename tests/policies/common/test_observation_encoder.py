@@ -4,6 +4,7 @@ from lerobot.configs import FeatureType, PolicyFeature
 from lerobot.utils.constants import OBS_ENV_STATE, OBS_STATE
 
 from lerobot_policy_robomimic.policies.common.observation_encoder import ObservationEncoder
+from lerobot_policy_robomimic.policies.common.vision import Resize
 
 
 def test_vector_observations_pass_through():
@@ -34,6 +35,27 @@ def test_matches_robomimic_up_to_feature_order():
 
     assert ours.output_dim == 9 + 64 * len(robomimic_reference.CAMERAS)
     torch.testing.assert_close(ours.eval()(batch), expected)
+
+
+def test_cameras_are_resized_before_they_are_cropped():
+    torch.manual_seed(0)
+    features = robomimic_reference.image_experiment_features()
+    large_features = {
+        key: PolicyFeature(type=FeatureType.VISUAL, shape=(3, 168, 168))
+        if feature.type is FeatureType.VISUAL
+        else feature
+        for key, feature in features.items()
+    }
+    resizing = ObservationEncoder(
+        large_features, crop_shape=(76, 76), num_kp=32, image_feature_dim=64, resize_shape=(84, 84)
+    ).eval()
+    reference = ObservationEncoder(features, crop_shape=(76, 76), num_kp=32, image_feature_dim=64).eval()
+    reference.load_state_dict(resizing.state_dict())
+    _, batch = robomimic_reference.random_image_observations(2)
+    large = {key: torch.rand(2, 3, 168, 168) if value.dim() == 4 else value for key, value in batch.items()}
+    resized = {key: Resize((84, 84))(value) if value.dim() == 4 else value for key, value in large.items()}
+
+    torch.testing.assert_close(resizing(large), reference(resized))
 
 
 def test_sequences_are_encoded_frame_by_frame():

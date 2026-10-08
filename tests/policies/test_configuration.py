@@ -69,6 +69,12 @@ def test_crop_must_fit_inside_images(config_class):
         make_config(config_class, crop_shape=(84, 76)).validate_features()
 
 
+def test_crop_must_fit_inside_resized_images(config_class):
+    make_config(config_class, resize_shape=(240, 320), crop_shape=(216, 288)).validate_features()
+    with pytest.raises(ValueError, match="crop_shape"):
+        make_config(config_class, resize_shape=(64, 64)).validate_features()
+
+
 def test_reads_one_observation_per_step(config_class):
     with pytest.raises(ValueError, match="n_obs_steps"):
         make_config(config_class, n_obs_steps=2)
