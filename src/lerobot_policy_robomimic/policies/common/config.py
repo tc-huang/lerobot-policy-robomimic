@@ -138,6 +138,8 @@ class RobomimicActorConfig(RobomimicPolicyConfig):
         gmm_num_modes: Number of Gaussians in the mixture.
         gmm_min_std: Lower bound added to every Gaussian's standard deviation in training.
         gmm_low_noise_eval: Whether the standard deviations shrink to 1e-4 outside training.
+        gmm_greedy_eval: Whether, outside training, the action is the mean of the mixture
+            component with the largest weight, instead of a sample from a sampled component.
         l2_weight: Without a distribution, weight of the mean squared error on the action.
         l1_weight: Without a distribution, weight of the smooth L1 error on the action.
         cos_weight: Without a distribution, weight of the cosine loss on the first three action
@@ -154,6 +156,7 @@ class RobomimicActorConfig(RobomimicPolicyConfig):
     gmm_num_modes: int = 5
     gmm_min_std: float = 1e-4
     gmm_low_noise_eval: bool = True
+    gmm_greedy_eval: bool = False
 
     l2_weight: float = 1.0
     l1_weight: float = 0.0

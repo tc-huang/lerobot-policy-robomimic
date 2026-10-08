@@ -62,8 +62,11 @@ class RobomimicBCRNNPolicy(PreTrainedPolicy):
 
     @torch.no_grad()
     def select_action(self, batch: dict[str, Tensor], **kwargs) -> Tensor:
-        """Returns the (B, action_dim) action, resetting the LSTM state every `rnn_horizon` steps."""
-        if self._steps % self.config.rnn_horizon == 0:
+        """Returns the (B, action_dim) action, resetting the LSTM state every `rnn_horizon` steps.
+
+        With `rnn_reset_at_inference` off, the state is reset only by `reset`.
+        """
+        if self.config.rnn_reset_at_inference and self._steps % self.config.rnn_horizon == 0:
             self._lstm_state = None
         self._steps += 1
         step = {key: batch[key].unsqueeze(1) for key in self.encoder.keys}

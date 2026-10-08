@@ -18,12 +18,15 @@ class RobomimicBCRNNConfig(RobomimicActorConfig):
         rnn_num_layers: Number of stacked LSTM layers.
         rnn_horizon: Length of the training sequences, and the number of steps after which
             the LSTM state is reset at inference.
+        rnn_reset_at_inference: Whether the LSTM state is reset every `rnn_horizon` steps at
+            inference, as robomimic does; False keeps it for the whole episode.
     """
 
     actor_layer_dims: tuple[int, ...] = ()
     rnn_hidden_dim: int = 1000
     rnn_num_layers: int = 2
     rnn_horizon: int = 10
+    rnn_reset_at_inference: bool = True
 
     def __post_init__(self) -> None:
         super().__post_init__()

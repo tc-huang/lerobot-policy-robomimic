@@ -89,6 +89,37 @@ def test_lstm_state_resets_every_rnn_horizon():
     torch.testing.assert_close(policy.select_action(batch), actions[0])
 
 
+def test_lstm_state_can_last_the_episode():
+    torch.manual_seed(0)
+    policy = make_policy(use_gmm=False, rnn_horizon=3, rnn_reset_at_inference=False).eval()
+    _, batch = robomimic_reference.random_image_observations(1)
+
+    actions = [policy.select_action(batch) for _ in range(4)]
+
+    assert not torch.allclose(actions[3], actions[0])
+    policy.reset()
+    torch.testing.assert_close(policy.select_action(batch), actions[0])
+
+
+def test_greedy_gmm_takes_the_most_likely_mean():
+    torch.manual_seed(0)
+    policy = make_policy(gmm_greedy_eval=True).eval()
+    _, batch = robomimic_reference.random_image_observations(2)
+    step = {key: batch[key].unsqueeze(1) for key in policy.encoder.keys}
+    features, _ = policy.features(step)
+    mixture = policy.action_head(features[:, 0])
+    best = mixture.mixture_distribution.logits.argmax(dim=-1)
+    expected = mixture.component_distribution.mean[torch.arange(2), best]
+
+    torch.manual_seed(1)
+    first = policy.select_action(batch)
+    policy.reset()
+    torch.manual_seed(2)
+
+    torch.testing.assert_close(first, expected)
+    torch.testing.assert_close(policy.select_action(batch), first)
+
+
 def test_predict_action_chunk_is_not_supported():
     _, batch = robomimic_reference.random_image_observations(1)
 

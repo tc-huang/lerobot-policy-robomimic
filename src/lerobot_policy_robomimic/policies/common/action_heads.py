@@ -108,16 +108,26 @@ class GMMHead(ActionHead):
     """A mixture of diagonal Gaussians over actions, trained by maximum likelihood.
 
     Means are bounded by tanh. Scales are softplus outputs plus `min_std`, except outside
-    training with `low_noise_eval`, where every scale is `LOW_NOISE_SCALE`.
+    training with `low_noise_eval`, where every scale is `LOW_NOISE_SCALE`. With `greedy_eval`,
+    the action outside training is the mean of the component with the largest weight.
     """
 
     LOW_NOISE_SCALE = 1e-4
 
-    def __init__(self, input_dim: int, action_dim: int, num_modes: int, min_std: float, low_noise_eval: bool):
+    def __init__(
+        self,
+        input_dim: int,
+        action_dim: int,
+        num_modes: int,
+        min_std: float,
+        low_noise_eval: bool,
+        greedy_eval: bool = False,
+    ):
         super().__init__()
         self.shape = (num_modes, action_dim)
         self.min_std = min_std
         self.low_noise_eval = low_noise_eval
+        self.greedy_eval = greedy_eval
         self.mean = nn.Linear(input_dim, num_modes * action_dim)
         self.scale = nn.Linear(input_dim, num_modes * action_dim)
         self.logits = nn.Linear(input_dim, num_modes)
@@ -139,8 +149,14 @@ class GMMHead(ActionHead):
         return -log_probs, {"log_probs": log_probs.item()}
 
     def act(self, features: Tensor) -> Tensor:
-        """Samples a mixture component, then an action from it."""
-        return self(features).sample()
+        """Samples a mixture component, then an action from it, or with `greedy_eval` outside
+        training takes the mean of the most likely component."""
+        distribution = self(features)
+        if self.greedy_eval and not self.training:
+            component = distribution.mixture_distribution.logits.argmax(dim=-1)
+            means = distribution.component_distribution.mean
+            return means[torch.arange(len(component), device=means.device), component]
+        return distribution.sample()
 
 
 def make_action_head(config: RobomimicActorConfig, input_dim: int) -> ActionHead:
@@ -157,6 +173,11 @@ def make_action_head(config: RobomimicActorConfig, input_dim: int) -> ActionHead
         )
     if config.use_gmm:
         return GMMHead(
-            input_dim, action_dim, config.gmm_num_modes, config.gmm_min_std, config.gmm_low_noise_eval
+            input_dim,
+            action_dim,
+            config.gmm_num_modes,
+            config.gmm_min_std,
+            config.gmm_low_noise_eval,
+            config.gmm_greedy_eval,
         )
     return DeterministicHead(input_dim, action_dim, config.l2_weight, config.l1_weight, config.cos_weight)
