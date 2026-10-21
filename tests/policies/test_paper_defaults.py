@@ -16,6 +16,7 @@ def assert_policy_defaults_match(ours, paper):
     assert ours.crop_shape == (rgb.obs_randomizer_kwargs.crop_height, rgb.obs_randomizer_kwargs.crop_width)
     assert ours.spatial_softmax_num_kp == rgb.core_kwargs.pool_kwargs.num_kp
     assert ours.image_feature_dim == rgb.core_kwargs.feature_dimension
+    assert ours.pretrained_backbone == rgb.core_kwargs.backbone_kwargs.pretrained
 
 
 def assert_shared_defaults_match(ours, paper):

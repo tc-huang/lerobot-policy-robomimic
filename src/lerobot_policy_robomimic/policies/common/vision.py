@@ -5,7 +5,7 @@ import math
 import torch
 from torch import Tensor, nn
 from torch.nn.functional import interpolate
-from torchvision.models import resnet18
+from torchvision.models import ResNet18_Weights, resnet18
 
 
 class Resize(nn.Module):
@@ -84,14 +84,22 @@ class ImageEncoder(nn.Module):
     """ResNet-18 trunk, spatial softmax, and a linear projection to one feature per camera.
 
     With `language_dim`, a `FiLM` layer follows each of the trunk's residual blocks, and the
-    encoder needs a language embedding for every image.
+    encoder needs a language embedding for every image. With `pretrained`, the trunk starts
+    from torchvision's ImageNet weights; images are fed in [0, 1] either way, as robomimic does.
     """
 
     def __init__(
-        self, height: int, width: int, num_kp: int, feature_dim: int, language_dim: int | None = None
+        self,
+        height: int,
+        width: int,
+        num_kp: int,
+        feature_dim: int,
+        language_dim: int | None = None,
+        pretrained: bool = False,
     ):
         super().__init__()
-        self.backbone = nn.Sequential(*list(resnet18(weights=None).children())[:-2])
+        weights = ResNet18_Weights.DEFAULT if pretrained else None
+        self.backbone = nn.Sequential(*list(resnet18(weights=weights).children())[:-2])
         self.film = (
             nn.ModuleList(FiLM(language_dim, block.conv2.out_channels) for block in self.residual_blocks())
             if language_dim is not None

@@ -50,6 +50,7 @@ class ObservationEncoder(nn.Module):
         camera_activation: bool = True,
         film: bool = False,
         resize_shape: tuple[int, int] | None = None,
+        pretrained_backbone: bool = False,
     ):
         super().__init__()
         self.keys = list(features)
@@ -71,7 +72,9 @@ class ObservationEncoder(nn.Module):
                         if crop_shape is not None
                         else nn.Identity()
                     ),
-                    encoder=ImageEncoder(height, width, num_kp, image_feature_dim, language_dim),
+                    encoder=ImageEncoder(
+                        height, width, num_kp, image_feature_dim, language_dim, pretrained_backbone
+                    ),
                     activation=nn.ReLU() if camera_activation else nn.Identity(),
                     resize=Resize(resize_shape) if resize_shape is not None else None,
                 )
@@ -93,6 +96,7 @@ class ObservationEncoder(nn.Module):
             camera_activation,
             film=config.language_conditioning == "film",
             resize_shape=config.resize_shape,
+            pretrained_backbone=config.pretrained_backbone,
         )
 
     @staticmethod

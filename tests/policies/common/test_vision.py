@@ -1,6 +1,7 @@
 import pytest
 import robomimic_reference
 import torch
+from torchvision.models import ResNet18_Weights, resnet18
 
 from lerobot_policy_robomimic.policies.common.vision import ImageEncoder, RandomCrop, Resize, SpatialSoftmax
 
@@ -47,6 +48,17 @@ def test_resize_keeps_strokes_thinner_than_its_step():
     assert (inner > 0).all()
     torch.testing.assert_close(inner.mean(), torch.tensor(0.25))
     assert (torch.nn.functional.interpolate(lines, size=(240, 320), mode="bilinear")[..., 1:-1] == 0).any()
+
+
+def test_pretrained_backbone_starts_from_imagenet():
+    imagenet = resnet18(weights=ResNet18_Weights.DEFAULT).state_dict()
+
+    pretrained = ImageEncoder(76, 76, 32, 64, pretrained=True).backbone.state_dict()
+    fresh = ImageEncoder(76, 76, 32, 64).backbone.state_dict()
+
+    torch.testing.assert_close(pretrained["0.weight"], imagenet["conv1.weight"])
+    torch.testing.assert_close(pretrained["7.1.conv2.weight"], imagenet["layer4.1.conv2.weight"])
+    assert not torch.equal(fresh["0.weight"], imagenet["conv1.weight"])
 
 
 def test_spatial_softmax_matches_robomimic():
